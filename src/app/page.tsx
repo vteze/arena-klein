@@ -13,8 +13,8 @@ import { cn } from '@/lib/utils';
 
 export default function HomePage() {
   const [isClient, setIsClient] = useState(false);
-  // Lifted state for globally selected date
-  const [globallySelectedDate, setGloballySelectedDate] = useState<Date | undefined>(new Date());
+  // Lifted state for globally selected date, initialized to undefined
+  const [globallySelectedDate, setGloballySelectedDate] = useState<Date | undefined>(undefined);
 
   useEffect(() => {
     setIsClient(true);
@@ -70,7 +70,7 @@ export default function HomePage() {
           </div>
           {courts.map((court, index) => {
             return (
-              <div key={court.id} className="flex flex-col items-center space-y-6"> {/* Reduced spacing between card and calendar */}
+              <div key={court.id} className="flex flex-col items-center space-y-6">
                 <CourtCard court={court} className="w-full max-w-3xl" />
                 <AvailabilityCalendar
                   court={court}
@@ -79,7 +79,7 @@ export default function HomePage() {
                   onDateSelect={setGloballySelectedDate}
                 />
                 {index < courts.length - 1 && (
-                  <Separator className="my-8 w-full max-w-3xl" /> /* Adjusted separator margin */
+                  <Separator className="my-8 w-full max-w-3xl" />
                 )}
               </div>
             );
