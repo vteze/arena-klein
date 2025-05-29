@@ -59,6 +59,11 @@ export function LoginForm() {
       </CardHeader>
       <CardContent>
         <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
+          {/*
+            Se authError estiver presente, um erro de login do Firebase ocorreu.
+            A mensagem em authError é definida pela função getFirebaseErrorMessage em AuthContext.
+            Para "auth/invalid-credential", a mensagem será "Credenciais inválidas. Verifique seu email e senha."
+          */}
           {authError && (
             <Alert variant="destructive">
               <AlertCircle className="h-4 w-4" />
@@ -85,7 +90,7 @@ export function LoginForm() {
           <div className="space-y-2">
             <div className="flex items-center justify-between">
               <Label htmlFor="password">Senha</Label>
-              {isClient && ( // Renderiza o link apenas no cliente
+              {isClient && (
                 <Button variant="link" asChild className="p-0 h-auto text-xs">
                   <Link href="/forgot-password">Esqueceu a senha?</Link>
                 </Button>
@@ -101,6 +106,7 @@ export function LoginForm() {
                 if (authError) clearAuthError();
               }}
             />
+            {/* A mensagem de erro "A senha deve ter pelo menos 6 caracteres." vem da validação Zod (cliente) */}
             {form.formState.errors.password && (
               <p className="text-sm text-destructive">{form.formState.errors.password.message}</p>
             )}

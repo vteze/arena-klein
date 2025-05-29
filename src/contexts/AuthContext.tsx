@@ -10,7 +10,7 @@ import {
   signInWithEmailAndPassword, 
   createUserWithEmailAndPassword,
   updateProfile,
-  sendPasswordResetEmail, // Importar sendPasswordResetEmail
+  sendPasswordResetEmail,
   type User as FirebaseUser
 } from 'firebase/auth';
 import { auth, db } from '@/lib/firebase';
@@ -185,7 +185,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
     } catch (error: any) {
       console.error("Password reset error:", error);
       const message = getFirebaseErrorMessage(error.code);
-      setAuthError(message); // Armazena para o formulário exibir, se necessário
+      setAuthError(message); 
       toast({
         variant: "destructive",
         title: "Falha ao Enviar Link",
@@ -208,6 +208,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
       return Promise.reject(new Error(errMsg));
     }
 
+    // Validação rigorosa dos campos de entrada
     const courtIdStr = String(newBookingData.courtId);
     const dateStr = String(newBookingData.date);
     const timeStr = String(newBookingData.time);
@@ -230,19 +231,18 @@ export function AuthProvider({ children }: AuthProviderProps) {
         throw new Error("Tipo da quadra inválido. Use 'covered' ou 'uncovered'.");
     }
     
+    // Gerar ID da reserva no cliente
     const generatedBookingId = doc(collection(db, RESERVAS_COLLECTION_NAME)).id;
 
     try {
       const reservasColRef = collection(db, RESERVAS_COLLECTION_NAME);
+      console.log(`Verificando conflito (NÃO TRANSACIONAL) na coleção '${RESERVAS_COLLECTION_NAME}'. Critérios: courtId='${courtIdStr}', date='${dateStr}', time='${timeStr}'. GARANTA QUE O ÍNDICE (courtId ASC, date ASC, time ASC, Escopo: Coleção) EXISTE E ESTÁ ATIVO PARA A COLEÇÃO '${RESERVAS_COLLECTION_NAME}'.`);
+      
       const conflictQuery = query(
         reservasColRef,
         where("courtId", "==", courtIdStr),
         where("date", "==", dateStr),
         where("time", "==", timeStr)
-      );
-      
-      console.log(
-        `Realizando verificação de conflito (NÃO TRANSACIONAL) na coleção '${RESERVAS_COLLECTION_NAME}'. Critérios: courtId='${courtIdStr}', date='${dateStr}', time='${timeStr}'. GARANTA QUE O ÍNDICE (courtId ASC, date ASC, time ASC, Escopo: Coleção) EXISTE E ESTÁ ATIVO PARA A COLEÇÃO '${RESERVAS_COLLECTION_NAME}'.`
       );
       
       const conflictSnapshot = await getDocs(conflictQuery);
@@ -279,6 +279,8 @@ export function AuthProvider({ children }: AuthProviderProps) {
         toastDescription = `Um índice necessário no Firestore para a coleção '${RESERVAS_COLLECTION_NAME}' está faltando ou incorreto para a consulta de verificação de conflito. Verifique o console do servidor/navegador para um link para criá-lo ou crie-o manualmente (campos: courtId ASC, date ASC, time ASC na coleção '${RESERVAS_COLLECTION_NAME}' com escopo de 'Coleção').`;
       } else if (error.message && error.message.includes("Este horário já foi reservado")) {
         toastDescription = error.message;
+      } else if (error.name === 'TypeError' && error.message && error.message.includes("reading 'path'")) {
+        toastDescription = `Falha crítica na reserva (Erro Interno Firestore). Verifique se o índice da coleção '${RESERVAS_COLLECTION_NAME}' (campos: courtId ASC, date ASC, time ASC; Escopo: Coleção) está ATIVO e CORRETO. Consulte os logs do console para mais detalhes.`;
       }
       
       toast({ 
@@ -388,7 +390,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
       login, 
       signUp, 
       logout, 
-      sendPasswordReset, // Adicionar nova função
+      sendPasswordReset, 
       addBooking, 
       cancelBooking, 
       signUpForPlaySlot, 
@@ -420,8 +422,7 @@ function getFirebaseErrorMessage(errorCode: string): string {
       return "Operação não permitida. Contate o suporte.";
     case "auth/invalid-credential": 
        return "Credenciais inválidas. Verifique seu email e senha.";
-    // Erros específicos para sendPasswordResetEmail
-    case "auth/missing-email": // Embora o Zod já valide isso
+    case "auth/missing-email":
         return "Por favor, insira seu endereço de email.";
     default:
       return "Ocorreu um erro de autenticação. Tente novamente.";
