@@ -3,7 +3,7 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { LogIn, LogOut, ListChecks, HomeIcon as HomeLucideIcon, UserPlus, HelpCircle, Swords } from 'lucide-react'; // Added Swords
+import { LogIn, LogOut, ListChecks, HomeIcon as HomeLucideIcon, UserPlus, HelpCircle, Swords } from 'lucide-react';
 import { APP_NAME } from '@/config/appConfig';
 import { useAuth } from '@/hooks/useAuth';
 import { Button } from '@/components/ui/button';
@@ -26,18 +26,17 @@ export function AppHeader() {
 
   const navLinksBase = [
     { href: '/', label: 'Início', icon: HomeLucideIcon },
-    { href: '/play', label: 'Play!', icon: Swords }, // Added Play link
+    { href: '/play', label: 'Play!', icon: Swords },
     { href: '/faq', label: 'FAQ', icon: HelpCircle },
   ];
   
   let navLinks = [...navLinksBase];
 
   if (currentUser) {
-    // Insert 'Minhas Reservas' after 'Play!' if user is logged in
     const playIndex = navLinks.findIndex(link => link.href === '/play');
     if (playIndex !== -1) {
       navLinks.splice(playIndex + 1, 0, { href: '/my-bookings', label: 'Minhas Reservas', icon: ListChecks });
-    } else { // Fallback if '/play' link wasn't found for some reason, add to end
+    } else {
       navLinks.push({ href: '/my-bookings', label: 'Minhas Reservas', icon: ListChecks });
     }
   }
@@ -72,35 +71,35 @@ export function AppHeader() {
   return (
     <header className="sticky top-0 z-50 w-full border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
       <div className="container flex h-16 items-center">
-        <Link href="/" className="mr-8 flex items-center gap-2">
+        <Link href="/" className="mr-3 sm:mr-4 md:mr-6 flex items-center gap-2 shrink-0">
           <AppLogo />
-          <span className="font-bold text-lg whitespace-nowrap">{APP_NAME}</span>
+          <span className="font-semibold text-base sm:text-lg">{APP_NAME}</span>
         </Link>
         
-        <nav className="flex items-center gap-1 sm:gap-2 text-sm font-medium">
+        <nav className="flex items-center gap-1 text-sm font-medium overflow-x-auto whitespace-nowrap">
           {navLinks.map(link => (
             <Link
               key={link.href}
               href={link.href}
               className={cn(
-                "flex items-center gap-2 px-3 py-2 rounded-md transition-colors hover:bg-accent hover:text-accent-foreground",
+                "flex items-center gap-2 p-2 md:px-3 rounded-md transition-colors hover:bg-accent hover:text-accent-foreground shrink-0",
                 pathname === link.href ? "bg-accent text-accent-foreground" : "text-muted-foreground hover:text-foreground/80"
               )}
             >
-              <link.icon className="h-4 w-4" />
-              <span className="hidden sm:inline">{link.label}</span>
+              <link.icon className="h-4 w-4 shrink-0" />
+              <span className="hidden md:inline">{link.label}</span>
             </Link>
           ))}
         </nav>
 
-        <div className="ml-auto flex items-center gap-2 sm:gap-4">
+        <div className="ml-auto flex items-center gap-1 sm:gap-2 shrink-0">
           {currentUser ? (
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
                 <Button variant="ghost" className="relative h-10 w-10 rounded-full p-0">
                   <Avatar className="h-10 w-10">
                     <AvatarImage 
-                      src={`https://placehold.co/100x100.png?text=${getInitials(currentUser.name)}`} 
+                      src={currentUser.name ? `https://placehold.co/100x100.png?text=${getInitials(currentUser.name)}` : `https://placehold.co/100x100.png`}
                       alt={currentUser.name || 'User Avatar'} 
                       data-ai-hint="avatar perfil" 
                     />
@@ -128,14 +127,14 @@ export function AppHeader() {
             <>
               <Button asChild variant="outline" size="sm">
                 <Link href="/login">
-                  <LogIn className="mr-0 sm:mr-2 h-4 w-4" />
-                  <span className="hidden sm:inline">Entrar</span>
+                  <LogIn className="h-4 w-4 md:mr-2" />
+                  <span className="hidden md:inline">Entrar</span>
                 </Link>
               </Button>
               <Button asChild variant="default" size="sm">
                 <Link href="/register">
-                  <UserPlus className="mr-0 sm:mr-2 h-4 w-4" />
-                   <span className="hidden sm:inline">Registrar</span>
+                  <UserPlus className="h-4 w-4 md:mr-2" />
+                   <span className="hidden md:inline">Registrar</span>
                 </Link>
               </Button>
             </>
