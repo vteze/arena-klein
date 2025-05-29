@@ -14,10 +14,6 @@ import { useAuth } from '@/hooks/useAuth';
 import { Loader2, AlertCircle } from 'lucide-react';
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 
-// Schema de validação para o formulário de login
-// A senha DEVE ter pelo menos 6 caracteres para ser enviada ao Firebase.
-// Se a senha tiver menos de 6 caracteres, o erro virá daqui (Zod).
-// Se a senha tiver 6+ caracteres mas estiver incorreta, o erro virá do Firebase (ex: "Senha incorreta").
 const loginSchema = z.object({
   email: z.string().email({ message: "Endereço de email inválido." }),
   password: z.string().min(6, { message: "A senha deve ter pelo menos 6 caracteres." }),
@@ -27,31 +23,31 @@ type LoginFormValues = z.infer<typeof loginSchema>;
 
 export function LoginForm() {
   const { login, isLoading, authError, clearAuthError } = useAuth();
+  const [isClient, setIsClient] = useState(false);
+
+  useEffect(() => {
+    setIsClient(true);
+  }, []);
+
   const form = useForm<LoginFormValues>({
     resolver: zodResolver(loginSchema),
     defaultValues: {
       email: "",
       password: "",
     },
-    mode: 'onSubmit', // Explicitly set validation mode
-    reValidateMode: 'onChange', // Explicitly set re-validation mode
+    mode: 'onSubmit', 
+    reValidateMode: 'onChange', 
   });
 
   useEffect(() => {
-    // Clear authError (Firebase errors) when component unmounts.
-    // Zod errors are managed by react-hook-form itself.
     return () => {
       if (authError) clearAuthError();
     };
   }, [authError, clearAuthError]);
 
   const onSubmit = async (data: LoginFormValues) => {
-    // DIAGNOSTIC LOG: Check if this function is called and with what data,
-    // especially when submitting with "Enter" and a short password.
-    // If called with password < 6 chars, react-hook-form/zodResolver isn't stopping submission.
     console.log('LoginForm onSubmit triggered. Password length:', data.password.length, 'Data:', JSON.stringify(data));
-
-    clearAuthError(); // Clear previous Firebase errors before attempting login
+    clearAuthError(); 
     await login(data.email, data.password);
   };
 
@@ -79,9 +75,7 @@ export function LoginForm() {
               {...form.register("email")}
               disabled={isLoading}
               onChange={() => {
-                // Clear Firebase error when user types in email field
                 if (authError) clearAuthError();
-                // react-hook-form will clear its own Zod error for 'email' on change if reValidateMode is 'onChange'
               }}
             />
             {form.formState.errors.email && (
@@ -97,9 +91,7 @@ export function LoginForm() {
               {...form.register("password")}
               disabled={isLoading}
               onChange={() => {
-                 // Clear Firebase error when user types in password field
                 if (authError) clearAuthError();
-                // react-hook-form will clear its own Zod error for 'password' on change if reValidateMode is 'onChange'
               }}
             />
             {form.formState.errors.password && (
@@ -113,10 +105,18 @@ export function LoginForm() {
         </form>
       </CardContent>
       <CardFooter className="flex-col items-start gap-2 text-sm">
-        <p>Não tem uma conta?</p>
-        <Button variant="link" asChild className="p-0 h-auto">
-          <Link href="/register">Cadastre-se aqui</Link>
-        </Button>
+        {isClient ? (
+          <>
+            <p>Não tem uma conta?</p>
+            <Button variant="link" asChild className="p-0 h-auto">
+              <Link href="/register">Cadastre-se aqui</Link>
+            </Button>
+          </>
+        ) : (
+          // Placeholder to match server render and avoid layout shift
+          // Approximate height of two lines of text + button link
+          <div className="h-[calc(1.25rem_+_theme(spacing.1)_+_1.25rem)] w-full" />
+        )}
       </CardFooter>
     </Card>
   );
