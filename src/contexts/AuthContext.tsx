@@ -52,7 +52,6 @@ export function AuthProvider({ children }: AuthProviderProps) {
       setIsLoading(false);
     });
 
-    // Listener for all bookings (needed for AvailabilityCalendar and conflict checking)
     const bookingsCol = collection(db, "bookings");
     const q = query(bookingsCol); 
     
@@ -71,7 +70,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
       unsubscribeAuth();
       unsubscribeBookings();
     };
-  }, []); // Removed toast from dependencies as it should be stable
+  }, []);
 
 
   const clearAuthError = () => setAuthError(null);
@@ -100,7 +99,6 @@ export function AuthProvider({ children }: AuthProviderProps) {
       if (userCredential.user) {
         await updateProfile(userCredential.user, { displayName: name });
         
-        // Create user document in Firestore
         const userDocRef = doc(db, "users", userCredential.user.uid);
         await setDoc(userDocRef, {
           uid: userCredential.user.uid,
@@ -155,9 +153,20 @@ export function AuthProvider({ children }: AuthProviderProps) {
     let generatedBookingId = '';
 
     try {
+      // Defensive checks for required fields
+      if (!newBookingData.courtId || typeof newBookingData.courtId !== 'string') {
+        throw new Error("ID da quadra inválido ou ausente.");
+      }
+      if (!newBookingData.date || typeof newBookingData.date !== 'string') {
+        throw new Error("Data da reserva inválida ou ausente.");
+      }
+      if (!newBookingData.time || typeof newBookingData.time !== 'string') {
+        throw new Error("Hora da reserva inválida ou ausente.");
+      }
+
       await runTransaction(db, async (transaction) => {
         const bookingsRef = collection(db, "bookings");
-        // This query needs a composite index on courtId, date, and time.
+        
         const conflictQuery = query(
           bookingsRef,
           where("courtId", "==", newBookingData.courtId),
@@ -165,10 +174,13 @@ export function AuthProvider({ children }: AuthProviderProps) {
           where("time", "==", newBookingData.time)
         );
 
-        console.log("Attempting to get conflict snapshot with query. Ensure Firestore index exists for courtId, date, time on bookings collection.");
+        console.log(
+            "Attempting to get conflict snapshot with query. Firestore index required on 'bookings' collection for fields: (courtId ASC, date ASC, time ASC). Query details:", 
+            { courtId: newBookingData.courtId, date: newBookingData.date, time: newBookingData.time }
+        );
+        
         const conflictSnapshot = await transaction.get(conflictQuery);
-        console.log("Conflict snapshot empty:", conflictSnapshot.empty);
-
+        
         if (!conflictSnapshot.empty) {
           throw new Error("Este horário já foi reservado. Por favor, escolha outro.");
         }
@@ -185,29 +197,36 @@ export function AuthProvider({ children }: AuthProviderProps) {
           courtType: newBookingData.courtType,
           date: newBookingData.date,
           time: newBookingData.time,
-          // Consider adding a createdAt timestamp here as well
-          // createdAt: serverTimestamp(), 
         };
         transaction.set(newBookingDocRef, bookingToSave);
       });
       return generatedBookingId; 
     } catch (error: any) {
       console.error("Error adding booking (transaction or pre-transaction): ", error);
-      // Check if the error message from Firestore suggests a missing index.
-      // Firestore often provides a direct link in the console error to create it.
-      if (error.message && (error.message.toLowerCase().includes("index") || error.message.includes("FIRESTORE_INDEX_NEARBY") || error.code === 'failed-precondition')) {
+      if (error.message === "ID da quadra inválido ou ausente." ||
+          error.message === "Data da reserva inválida ou ausente." ||
+          error.message === "Hora da reserva inválida ou ausente.") {
+        toast({ variant: "destructive", title: "Dados Inválidos", description: error.message });
+      } else if (error.message && (error.message.toLowerCase().includes("index") || error.message.includes("FIRESTORE_INDEX_NEARBY") || (error.code === 'failed-precondition' && error.message.toLowerCase().includes("query requires an index")) )) {
          toast({ 
            variant: "destructive", 
            title: "Erro de Configuração do Banco", 
-           description: "Um índice necessário no Firestore está faltando para a consulta de reserva. Verifique o console do navegador/servidor para um link para criá-lo ou crie-o manualmente (campos: courtId, date, time na coleção bookings)." ,
-           duration: 10000
+           description: "Um índice necessário no Firestore está faltando para a consulta de reserva. Verifique o console do navegador/servidor para um link para criá-lo ou crie-o manualmente (campos: courtId ASC, date ASC, time ASC na coleção bookings)." ,
+           duration: 12000 
           });
       } else if (error.message === "Este horário já foi reservado. Por favor, escolha outro.") {
          toast({ variant: "destructive", title: "Horário Indisponível", description: error.message });
       } else {
-        toast({ variant: "destructive", title: "Falha na Reserva", description: "Não foi possível processar sua reserva. Tente novamente."})
+        // For generic TypeErrors like "Cannot read properties of undefined (reading 'path')"
+        // which often mask underlying index issues if the more specific error isn't caught.
+        toast({ 
+            variant: "destructive", 
+            title: "Falha na Reserva", 
+            description: `Não foi possível processar sua reserva. Verifique se o índice do Firestore (courtId, date, time) existe. Detalhe: ${error.message}`,
+            duration: 10000 
+        });
       }
-      throw error; // Re-throw para que o BookingConfirmationDialog possa tratar também
+      throw error;
     }
   };
 
@@ -220,17 +239,15 @@ export function AuthProvider({ children }: AuthProviderProps) {
     try {
       const bookingDocRef = doc(db, "bookings", bookingId);
       await deleteDoc(bookingDocRef);
-      // Toast for successful cancellation will be handled in BookingCancellationDialog
     } catch (error: any) {
       console.error("Error cancelling booking: ", error);
       toast({ variant: "destructive", title: "Erro ao Cancelar", description: error.message || "Não foi possível cancelar sua reserva." });
-      throw error; // Re-throw para que o dialog possa tratar
+      throw error; 
     }
   };
 
   useEffect(() => {
     const protectedRoutes = ['/my-bookings']; 
-    // Redirect to login if not authenticated and trying to access a protected route
     if (!isLoading && !currentUser && protectedRoutes.includes(pathname)) {
       router.push('/login');
     }
@@ -243,7 +260,6 @@ export function AuthProvider({ children }: AuthProviderProps) {
   );
 }
 
-// Helper function to provide user-friendly error messages
 function getFirebaseErrorMessage(errorCode: string): string {
   switch (errorCode) {
     case "auth/invalid-email":
@@ -260,9 +276,11 @@ function getFirebaseErrorMessage(errorCode: string): string {
       return "A senha é muito fraca. Use pelo menos 6 caracteres.";
     case "auth/operation-not-allowed":
       return "Operação não permitida. Contate o suporte.";
-    case "auth/invalid-credential": // Common for wrong email/password combo
+    case "auth/invalid-credential": 
        return "Credenciais inválidas. Verifique seu email e senha.";
     default:
       return "Ocorreu um erro de autenticação. Tente novamente.";
   }
 }
+
+    
