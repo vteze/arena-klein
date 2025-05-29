@@ -9,6 +9,7 @@ import { AvailabilityCalendar } from '@/components/courts/AvailabilityCalendar';
 import { Separator } from '@/components/ui/separator';
 import { Button } from '@/components/ui/button';
 import { CalendarDays, ListChecks } from 'lucide-react';
+import { cn } from '@/lib/utils';
 
 export default function HomePage() {
   const [isClient, setIsClient] = useState(false);
@@ -65,13 +66,16 @@ export default function HomePage() {
           </p>
         </div>
         {courts.map((court, index) => (
-          <div key={court.id} className="space-y-8">
-            <CourtCard court={court} />
-            <AvailabilityCalendar court={court} />
-            {index < courts.length - 1 && <Separator className="my-16" />}
+          <div key={court.id} className="flex flex-col items-center space-y-8">
+            <CourtCard court={court} className="w-full max-w-3xl" />
+            <AvailabilityCalendar court={court} className="w-full max-w-3xl" />
+            {index < courts.length - 1 && (
+              <Separator className="my-12 w-full max-w-3xl" />
+            )}
           </div>
         ))}
       </section>
     </div>
   );
 }
+

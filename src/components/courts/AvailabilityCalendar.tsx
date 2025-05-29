@@ -14,12 +14,14 @@ import { availableTimeSlots } from '@/config/appConfig';
 import { BookingConfirmationDialog } from '@/components/bookings/BookingConfirmationDialog';
 import { AlertCircle } from 'lucide-react';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
+import { cn } from '@/lib/utils';
 
 interface AvailabilityCalendarProps {
   court: Court;
+  className?: string;
 }
 
-export function AvailabilityCalendar({ court }: AvailabilityCalendarProps) {
+export function AvailabilityCalendar({ court, className }: AvailabilityCalendarProps) {
   const [selectedDate, setSelectedDate] = useState<Date | undefined>(new Date());
   const [timeSlots, setTimeSlots] = useState<TimeSlot[]>([]);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
@@ -56,13 +58,13 @@ export function AvailabilityCalendar({ court }: AvailabilityCalendarProps) {
   const today = startOfDay(new Date());
 
   return (
-    <Card>
+    <Card className={cn(className)}>
       <CardHeader>
         <CardTitle className="text-xl">Verificar Disponibilidade</CardTitle>
       </CardHeader>
       <CardContent className="space-y-6">
         <div className="flex flex-col md:flex-row gap-6">
-          <div className="flex-shrink-0">
+          <div className="flex-shrink-0 mx-auto md:mx-0"> {/* Center calendar on small screens */}
             <Calendar
               mode="single"
               selected={selectedDate}
@@ -76,7 +78,7 @@ export function AvailabilityCalendar({ court }: AvailabilityCalendarProps) {
           <div className="flex-grow">
             {selectedDate ? (
               <>
-                <h3 className="text-lg font-semibold mb-3">
+                <h3 className="text-lg font-semibold mb-3 text-center md:text-left"> {/* Center title on small screens */}
                   Horários Disponíveis para {format(selectedDate, "dd 'de' MMMM 'de' yyyy", { locale: ptBR })}:
                 </h3>
                 {authIsLoading ? (
@@ -86,21 +88,26 @@ export function AvailabilityCalendar({ court }: AvailabilityCalendarProps) {
                     ))}
                   </div>
                 ) : timeSlots.length > 0 ? (
-                  <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-2">
+                  <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-2"> {/* Adjusted grid for consistency */}
                     {timeSlots.map(slot => (
                       <Button
                         key={slot.time}
                         variant={slot.isBooked ? "destructive" : "outline"}
                         disabled={slot.isBooked}
                         onClick={() => !slot.isBooked && handleTimeSlotClick(slot.time)}
-                        className={`w-full ${slot.isBooked ? 'cursor-not-allowed' : 'hover:bg-primary hover:text-primary-foreground'}`}
+                        className={cn(
+                          "w-full transition-colors duration-150 ease-in-out",
+                          slot.isBooked 
+                            ? 'cursor-not-allowed opacity-70' 
+                            : 'hover:bg-primary hover:text-primary-foreground focus:bg-primary focus:text-primary-foreground'
+                        )}
                       >
                         {slot.time}
                       </Button>
                     ))}
                   </div>
                 ) : (
-                  <p className="text-muted-foreground">Nenhum horário configurado.</p>
+                  <p className="text-muted-foreground text-center md:text-left">Nenhum horário configurado.</p>
                 )}
               </>
             ) : (
@@ -127,3 +134,4 @@ export function AvailabilityCalendar({ court }: AvailabilityCalendarProps) {
     </Card>
   );
 }
+
