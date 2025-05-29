@@ -3,7 +3,7 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { LogIn, LogOut, ListChecks, HomeIcon as HomeLucideIcon, UserPlus, HelpCircle } from 'lucide-react'; // Added UserPlus and HelpCircle
+import { LogIn, LogOut, ListChecks, HomeIcon as HomeLucideIcon, UserPlus, HelpCircle, Swords } from 'lucide-react'; // Added Swords
 import { APP_NAME } from '@/config/appConfig';
 import { useAuth } from '@/hooks/useAuth';
 import { Button } from '@/components/ui/button';
@@ -24,13 +24,22 @@ export function AppHeader() {
   const { currentUser, logout, isLoading } = useAuth();
   const pathname = usePathname();
 
-  const navLinks = [
+  const navLinksBase = [
     { href: '/', label: 'Início', icon: HomeLucideIcon },
-    { href: '/faq', label: 'FAQ', icon: HelpCircle }, // Added FAQ link
+    { href: '/play', label: 'Play!', icon: Swords }, // Added Play link
+    { href: '/faq', label: 'FAQ', icon: HelpCircle },
   ];
   
+  let navLinks = [...navLinksBase];
+
   if (currentUser) {
-    navLinks.splice(1, 0, { href: '/my-bookings', label: 'Minhas Reservas', icon: ListChecks });
+    // Insert 'Minhas Reservas' after 'Play!' if user is logged in
+    const playIndex = navLinks.findIndex(link => link.href === '/play');
+    if (playIndex !== -1) {
+      navLinks.splice(playIndex + 1, 0, { href: '/my-bookings', label: 'Minhas Reservas', icon: ListChecks });
+    } else { // Fallback if '/play' link wasn't found for some reason, add to end
+      navLinks.push({ href: '/my-bookings', label: 'Minhas Reservas', icon: ListChecks });
+    }
   }
 
 
@@ -75,7 +84,7 @@ export function AppHeader() {
               href={link.href}
               className={cn(
                 "flex items-center gap-2 px-3 py-2 rounded-md transition-colors hover:bg-accent hover:text-accent-foreground",
-                pathname === link.href ? "bg-accent text-accent-foreground" : "text-muted-foreground"
+                pathname === link.href ? "bg-accent text-accent-foreground" : "text-muted-foreground hover:text-foreground/80"
               )}
             >
               <link.icon className="h-4 w-4" />
