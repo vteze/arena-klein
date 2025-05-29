@@ -10,7 +10,7 @@ import {
   signInWithEmailAndPassword, 
   createUserWithEmailAndPassword,
   updateProfile,
-  sendPasswordResetEmail,
+  sendPasswordResetEmail, // Importado
   type User as FirebaseUser
 } from 'firebase/auth';
 import { auth, db } from '@/lib/firebase';
@@ -23,17 +23,17 @@ import {
   setDoc, 
   serverTimestamp, 
   deleteDoc,
-  addDoc, 
-  getDocs, 
-  Timestamp,
+  addDoc, // Para novas reservas
+  getDocs, // Para verificar conflitos
+  Timestamp, // Para PlaySignUp
 } from 'firebase/firestore';
 import { useToast } from "@/hooks/use-toast";
-import { maxParticipantsPerPlaySlot } from '@/config/appConfig'; 
+import { maxParticipantsPerPlaySlot } from '@/config/appConfig'; // Para o Play
 
 export const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 const USERS_COLLECTION_NAME = "users";
-const RESERVAS_COLLECTION_NAME = "reservas";
+const RESERVAS_COLLECTION_NAME = "reservas"; // Nome da coleção em português
 const PLAY_SIGNUPS_COLLECTION_NAME = "playSignUps"; 
 
 export function AuthProvider({ children }: AuthProviderProps) {
@@ -60,6 +60,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
       setIsLoading(false);
     });
 
+    // Listener para TODAS as reservas (necessário para o calendário de disponibilidade)
     const reservasColRef = collection(db, RESERVAS_COLLECTION_NAME); 
     const qReservas = query(reservasColRef); 
     const unsubscribeBookings = onSnapshot(qReservas, (querySnapshot) => {
@@ -78,6 +79,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
       });
     });
 
+    // Listener para Play SignUps
     const playSignUpsColRef = collection(db, PLAY_SIGNUPS_COLLECTION_NAME);
     const qPlaySignUps = query(playSignUpsColRef); 
     const unsubscribePlaySignUps = onSnapshot(qPlaySignUps, (querySnapshot) => {
@@ -101,7 +103,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
       unsubscribeBookings();
       unsubscribePlaySignUps(); 
     };
-  }, []);
+  }, []); // Removido toast das dependências
 
 
   const clearAuthError = () => setAuthError(null);
@@ -130,6 +132,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
       if (userCredential.user) {
         await updateProfile(userCredential.user, { displayName: name });
         
+        // Criar documento do usuário na coleção "users"
         const userDocRef = doc(db, USERS_COLLECTION_NAME, userCredential.user.uid);
         await setDoc(userDocRef, {
           uid: userCredential.user.uid,
@@ -172,6 +175,9 @@ export function AuthProvider({ children }: AuthProviderProps) {
     }
   };
 
+  // Para localizar o email de redefinição de senha (e outros emails do Firebase Auth) para português,
+  // você deve ir ao Console do Firebase > Authentication > Templates.
+  // Selecione "Password reset" e altere o idioma do template para "Português (pt)".
   const sendPasswordReset = async (email: string) => {
     setIsLoading(true);
     setAuthError(null);
@@ -180,7 +186,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
       toast({
         title: "Link de Redefinição Enviado",
         description: `Se uma conta existir para ${email}, um email foi enviado com instruções para redefinir sua senha.`,
-        duration: 9000,
+        duration: 9000, // Maior duração para esta mensagem
       });
     } catch (error: any) {
       console.error("Password reset error:", error);
@@ -208,32 +214,42 @@ export function AuthProvider({ children }: AuthProviderProps) {
       return Promise.reject(new Error(errMsg));
     }
 
-    // Validação rigorosa dos campos de entrada
-    const courtIdStr = String(newBookingData.courtId);
-    const dateStr = String(newBookingData.date);
-    const timeStr = String(newBookingData.time);
-    const courtNameStr = String(newBookingData.courtName);
+    // Pré-cast e validação rigorosa dos campos de entrada
+    const courtIdStr = String(newBookingData.courtId || '').trim();
+    const dateStr = String(newBookingData.date || '').trim();
+    const timeStr = String(newBookingData.time || '').trim();
+    const courtNameStr = String(newBookingData.courtName || '').trim();
     const courtTypeStr = newBookingData.courtType;
 
-    if (!courtIdStr || courtIdStr.trim() === '' || courtIdStr === 'undefined') {
-      throw new Error("ID da quadra inválido.");
+    if (!courtIdStr || courtIdStr === 'undefined') {
+      const msg = "ID da quadra inválido fornecido para reserva.";
+      console.error(msg, newBookingData);
+      throw new Error(msg);
     }
     if (!dateStr || !/^\d{4}-\d{2}-\d{2}$/.test(dateStr)) {
-      throw new Error("Formato da data inválido. Use AAAA-MM-DD.");
+      const msg = "Formato da data inválido para reserva. Use AAAA-MM-DD.";
+      console.error(msg, newBookingData);
+      throw new Error(msg);
     }
     if (!timeStr || !/^\d{2}:\d{2}$/.test(timeStr)) {
-      throw new Error("Formato da hora inválido. Use HH:mm.");
+      const msg = "Formato da hora inválido para reserva. Use HH:mm.";
+      console.error(msg, newBookingData);
+      throw new Error(msg);
     }
-    if (!courtNameStr || courtNameStr.trim() === '' || courtNameStr === 'undefined') {
-      throw new Error("Nome da quadra inválido.");
+    if (!courtNameStr || courtNameStr === 'undefined') {
+      const msg = "Nome da quadra inválido fornecido para reserva.";
+      console.error(msg, newBookingData);
+      throw new Error(msg);
     }
-    if (!courtTypeStr || (courtTypeStr !== 'covered' && courtTypeStr !== 'uncovered')) {
-        throw new Error("Tipo da quadra inválido. Use 'covered' ou 'uncovered'.");
+     if (!courtTypeStr || (courtTypeStr !== 'covered' && courtTypeStr !== 'uncovered')) {
+        const msg = "Tipo da quadra inválido. Use 'covered' ou 'uncovered'.";
+        console.error(msg, newBookingData);
+        throw new Error(msg);
     }
-    
+
     // Gerar ID da reserva no cliente
     const generatedBookingId = doc(collection(db, RESERVAS_COLLECTION_NAME)).id;
-
+    
     try {
       const reservasColRef = collection(db, RESERVAS_COLLECTION_NAME);
       console.log(`Verificando conflito (NÃO TRANSACIONAL) na coleção '${RESERVAS_COLLECTION_NAME}'. Critérios: courtId='${courtIdStr}', date='${dateStr}', time='${timeStr}'. GARANTA QUE O ÍNDICE (courtId ASC, date ASC, time ASC, Escopo: Coleção) EXISTE E ESTÁ ATIVO PARA A COLEÇÃO '${RESERVAS_COLLECTION_NAME}'.`);
@@ -270,16 +286,16 @@ export function AuthProvider({ children }: AuthProviderProps) {
       return generatedBookingId;
 
     } catch (error: any) {
-      console.error(
+       console.error(
         `Erro ao adicionar reserva (verificação não transacional ou escrita) na coleção '${RESERVAS_COLLECTION_NAME}'. Nome do Erro: "${error.name}" "Código do Erro:" ${error.code} "Mensagem do Erro:" "${error.message}" "Objeto de Erro Completo:"`, error
       );
       
       let toastDescription = `Não foi possível processar sua reserva. Detalhe: ${error.message || 'Erro desconhecido.'}`;
-      if (error.message && (error.message.toLowerCase().includes("index") || error.message.includes("FIRESTORE_INDEX_NEARBY") || (error.code === 'failed-precondition' && error.message.toLowerCase().includes("query requires an index")) )) {
+      if (error.name === 'FirebaseError' && error.message && (error.message.toLowerCase().includes("index") || error.message.includes("FIRESTORE_INDEX_NEARBY") || (error.code === 'failed-precondition' && error.message.toLowerCase().includes("query requires an index")) )) {
         toastDescription = `Um índice necessário no Firestore para a coleção '${RESERVAS_COLLECTION_NAME}' está faltando ou incorreto para a consulta de verificação de conflito. Verifique o console do servidor/navegador para um link para criá-lo ou crie-o manualmente (campos: courtId ASC, date ASC, time ASC na coleção '${RESERVAS_COLLECTION_NAME}' com escopo de 'Coleção').`;
       } else if (error.message && error.message.includes("Este horário já foi reservado")) {
         toastDescription = error.message;
-      } else if (error.name === 'TypeError' && error.message && error.message.includes("reading 'path'")) {
+      } else if (error.name === 'TypeError' && error.message && error.message.includes("Cannot read properties of undefined (reading 'path')")) {
         toastDescription = `Falha crítica na reserva (Erro Interno Firestore). Verifique se o índice da coleção '${RESERVAS_COLLECTION_NAME}' (campos: courtId ASC, date ASC, time ASC; Escopo: Coleção) está ATIVO e CORRETO. Consulte os logs do console para mais detalhes.`;
       }
       
@@ -428,3 +444,5 @@ function getFirebaseErrorMessage(errorCode: string): string {
       return "Ocorreu um erro de autenticação. Tente novamente.";
   }
 }
+
+    

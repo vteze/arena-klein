@@ -37,6 +37,7 @@ export function ForgotPasswordForm() {
   });
 
   useEffect(() => {
+    // Limpar erro de autenticação ao desmontar ou se o erro mudar
     return () => {
       if (authError) clearAuthError();
     };
@@ -44,17 +45,18 @@ export function ForgotPasswordForm() {
 
   const onSubmit = async (data: ForgotPasswordFormValues) => {
     clearAuthError();
-    setEmailSent(false); // Reset email sent state
-    await sendPasswordReset(data.email);
-    // A função sendPasswordReset já mostra um toast de sucesso/erro
-    // Se não houver authError após a chamada, consideramos que o processo (tentativa de envio) foi "concluído"
-    // O Firebase não confirma se o email realmente existe, apenas se o formato é válido e a tentativa de envio foi feita.
-    if (!authError) { // Verifica o estado do authError *após* a tentativa
-      setEmailSent(true); // Assume que a tentativa foi bem-sucedida se nenhum erro foi setado
+    setEmailSent(false); // Resetar o estado de envio antes de tentar novamente
+    const success = await sendPasswordReset(data.email);
+    // sendPasswordReset no AuthContext já mostra um toast.
+    // Aqui, atualizamos o estado local `emailSent` APENAS se não houver authError após a chamada.
+    // Se authError for definido por sendPasswordReset, emailSent permanecerá/se tornará false.
+    if (!authError) { // Verifica o estado de authError *após* a tentativa de envio
+        setEmailSent(true);
     }
   };
   
-  // Atualiza o estado de emailSent se authError mudar após a submissão
+  // Se authError for atualizado (por exemplo, por uma falha no envio),
+  // garante que emailSent seja false para não mostrar a mensagem de sucesso.
   useEffect(() => {
     if (authError) {
       setEmailSent(false);
@@ -71,6 +73,7 @@ export function ForgotPasswordForm() {
         </CardDescription>
       </CardHeader>
       <CardContent>
+        {/* Exibe alerta de sucesso SE emailSent for true E não houver authError */}
         {emailSent && !authError && (
            <Alert variant="default" className="mb-6 border-green-500 bg-green-50 dark:bg-green-900/30">
             <MailCheck className="h-5 w-5 text-green-600 dark:text-green-400" />
@@ -80,6 +83,7 @@ export function ForgotPasswordForm() {
             </AlertDescription>
           </Alert>
         )}
+        {/* Exibe alerta de erro se authError estiver presente */}
         {authError && (
             <Alert variant="destructive" className="mb-6">
               <AlertCircle className="h-4 w-4" />
@@ -95,19 +99,26 @@ export function ForgotPasswordForm() {
               type="email"
               placeholder="seu.email@exemplo.com"
               {...form.register("email")}
-              disabled={isLoading || emailSent} // Desabilita após envio bem-sucedido
+              // Desabilita o input se estiver carregando OU se o email foi enviado com sucesso (e não há erro)
+              disabled={isLoading || (emailSent && !authError)} 
               onChange={() => {
-                if (authError) clearAuthError();
-                if (emailSent) setEmailSent(false); // Permite nova tentativa
+                // Se o usuário começar a digitar novamente:
+                if (authError) clearAuthError(); // Limpa o erro anterior
+                if (emailSent) setEmailSent(false); // Permite uma nova tentativa, reabilita o botão
               }}
             />
             {form.formState.errors.email && (
               <p className="text-sm text-destructive">{form.formState.errors.email.message}</p>
             )}
           </div>
-          <Button type="submit" className="w-full" disabled={isLoading || emailSent}>
+          <Button 
+            type="submit" 
+            className="w-full" 
+            // Desabilita o botão se estiver carregando OU se o email foi enviado com sucesso (e não há erro)
+            disabled={isLoading || (emailSent && !authError)}
+          >
             {isLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-            {emailSent ? "Link Enviado" : "Enviar Link de Redefinição"}
+            {isLoading ? "Enviando..." : (emailSent && !authError) ? "Link Enviado" : "Enviar Link de Redefinição"}
           </Button>
         </form>
       </CardContent>
@@ -119,9 +130,12 @@ export function ForgotPasswordForm() {
             </Button>
           </>
         ) : (
-          <div className="h-[calc(1.25rem_+_theme(spacing.1)_+_1.25rem)] w-full" />
+          // Placeholder para SSR, para evitar layout shift
+          <div className="h-[calc(1.25rem_+_theme(spacing.1)_+_1.25rem)] w-full" /> 
         )}
       </CardFooter>
     </Card>
   );
 }
+
+    
