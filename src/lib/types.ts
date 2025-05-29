@@ -29,3 +29,23 @@ export interface TimeSlot {
   time: string; // HH:mm
   isBooked: boolean;
 }
+
+// AuthContext types
+import type { ReactNode } from 'react';
+
+export interface AuthContextType {
+  currentUser: User | null;
+  bookings: Booking[];
+  login: (email: string, pass: string) => Promise<void>;
+  signUp: (name: string, email: string, pass: string) => Promise<void>;
+  logout: () => Promise<void>;
+  addBooking: (newBooking: Omit<Booking, 'id' | 'userId' | 'userName'>) => Promise<string>; // Returns booking ID
+  cancelBooking: (bookingId: string) => Promise<void>;
+  isLoading: boolean;
+  authError: string | null;
+  clearAuthError: () => void;
+}
+
+export interface AuthProviderProps {
+  children: ReactNode;
+}

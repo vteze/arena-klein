@@ -1,9 +1,8 @@
 
 "use client";
 
-import type { User, Booking } from '@/lib/types';
+import type { User, Booking, AuthContextType, AuthProviderProps } from '@/lib/types';
 import { useRouter, usePathname } from 'next/navigation';
-import type { ReactNode } from 'react';
 import { createContext, useState, useEffect } from 'react';
 import { 
   onAuthStateChanged, 
@@ -14,39 +13,33 @@ import {
   type User as FirebaseUser
 } from 'firebase/auth';
 import { auth, db } from '@/lib/firebase';
-import { collection, addDoc, query, where, getDocs, onSnapshot, doc, setDoc, serverTimestamp, deleteDoc } from 'firebase/firestore';
+import { 
+  collection, 
+  query, 
+  where, 
+  getDocs, 
+  onSnapshot, 
+  doc, 
+  setDoc, 
+  serverTimestamp, 
+  deleteDoc,
+  runTransaction // Import runTransaction
+} from 'firebase/firestore';
 import { useToast } from "@/hooks/use-toast";
 
-export interface AuthContextType {
-  currentUser: User | null;
-  bookings: Booking[];
-  login: (email: string, pass: string) => Promise<void>;
-  signUp: (name: string, email: string, pass: string) => Promise<void>;
-  logout: () => Promise<void>;
-  addBooking: (newBooking: Omit<Booking, 'id' | 'userId' | 'userName'>) => Promise<void>;
-  cancelBooking: (bookingId: string) => Promise<void>;
-  isLoading: boolean;
-  authError: string | null;
-  clearAuthError: () => void;
-}
-
 export const AuthContext = createContext<AuthContextType | undefined>(undefined);
-
-interface AuthProviderProps {
-  children: ReactNode;
-}
 
 export function AuthProvider({ children }: AuthProviderProps) {
   const [currentUser, setCurrentUser] = useState<User | null>(null);
   const [bookings, setBookings] = useState<Booking[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
+  const [isLoading, setIsLoading] = useState(true); // Auth loading state
   const [authError, setAuthError] = useState<string | null>(null);
   const router = useRouter();
   const pathname = usePathname();
   const { toast } = useToast();
 
   useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, (firebaseUser: FirebaseUser | null) => {
+    const unsubscribeAuth = onAuthStateChanged(auth, (firebaseUser: FirebaseUser | null) => {
       if (firebaseUser) {
         setCurrentUser({
           id: firebaseUser.uid,
@@ -55,35 +48,31 @@ export function AuthProvider({ children }: AuthProviderProps) {
         });
       } else {
         setCurrentUser(null);
-        setBookings([]); // Clear bookings on logout
       }
       setIsLoading(false);
     });
-    return () => unsubscribe();
-  }, []);
 
-  useEffect(() => {
-    if (currentUser && !isLoading) {
-      const bookingsCol = collection(db, "bookings");
-      // Query for bookings where the userId matches the current user's ID
-      const q = query(bookingsCol, where("userId", "==", currentUser.id));
-      
-      const unsubscribeBookings = onSnapshot(q, (querySnapshot) => {
-        const userBookings: Booking[] = [];
-        querySnapshot.forEach((doc) => {
-          userBookings.push({ id: doc.id, ...doc.data() } as Booking);
-        });
-        setBookings(userBookings);
-      }, (error) => {
-        console.error("Error fetching bookings: ", error);
-        toast({ variant: "destructive", title: "Erro ao buscar reservas", description: "Não foi possível carregar suas reservas." });
+    // Listener for all bookings (not user-specific for AvailabilityCalendar)
+    const bookingsCol = collection(db, "bookings");
+    const q = query(bookingsCol); // Fetch all bookings
+    
+    const unsubscribeBookings = onSnapshot(q, (querySnapshot) => {
+      const allBookings: Booking[] = [];
+      querySnapshot.forEach((doc) => {
+        allBookings.push({ id: doc.id, ...doc.data() } as Booking);
       });
+      setBookings(allBookings);
+    }, (error) => {
+      console.error("Error fetching all bookings: ", error);
+      toast({ variant: "destructive", title: "Erro ao buscar dados de reservas", description: "Não foi possível carregar os dados de todas as reservas." });
+    });
 
-      return () => unsubscribeBookings();
-    } else if (!currentUser && !isLoading) {
-      setBookings([]); // Clear bookings if no user
-    }
-  }, [currentUser, isLoading, toast]);
+    return () => {
+      unsubscribeAuth();
+      unsubscribeBookings();
+    };
+  }, [toast]);
+
 
   const clearAuthError = () => setAuthError(null);
 
@@ -95,8 +84,9 @@ export function AuthProvider({ children }: AuthProviderProps) {
       router.push('/');
     } catch (error: any) {
       console.error("Login error:", error);
-      setAuthError(getFirebaseErrorMessage(error.code));
-      toast({ variant: "destructive", title: "Falha no Login", description: getFirebaseErrorMessage(error.code) });
+      const message = getFirebaseErrorMessage(error.code);
+      setAuthError(message);
+      toast({ variant: "destructive", title: "Falha no Login", description: message });
     } finally {
       setIsLoading(false);
     }
@@ -125,10 +115,11 @@ export function AuthProvider({ children }: AuthProviderProps) {
         });
       }
       router.push('/');
-    } catch (error: any)      {
+    } catch (error: any) {
       console.error("Sign up error:", error);
-      setAuthError(getFirebaseErrorMessage(error.code));
-      toast({ variant: "destructive", title: "Falha no Cadastro", description: getFirebaseErrorMessage(error.code) });
+      const message = getFirebaseErrorMessage(error.code);
+      setAuthError(message);
+      toast({ variant: "destructive", title: "Falha no Cadastro", description: message });
     } finally {
       setIsLoading(false);
     }
@@ -140,34 +131,64 @@ export function AuthProvider({ children }: AuthProviderProps) {
     try {
       await signOut(auth);
       setCurrentUser(null);
-      setBookings([]);
+      // Bookings state will persist with all bookings, which is fine for AvailabilityCalendar
       router.push('/login');
     } catch (error: any) {
       console.error("Logout error:", error);
-      setAuthError(getFirebaseErrorMessage(error.code));
-      toast({ variant: "destructive", title: "Falha ao Sair", description: getFirebaseErrorMessage(error.code) });
+      const message = getFirebaseErrorMessage(error.code);
+      setAuthError(message);
+      toast({ variant: "destructive", title: "Falha ao Sair", description: message });
     } finally {
       setIsLoading(false);
     }
   };
 
-  const addBooking = async (newBookingData: Omit<Booking, 'id' | 'userId' | 'userName'>) => {
+  const addBooking = async (newBookingData: Omit<Booking, 'id' | 'userId' | 'userName'>): Promise<string> => {
     if (!currentUser) {
-      setAuthError("Você precisa estar logado para fazer uma reserva.");
-      toast({ variant: "destructive", title: "Não Autenticado", description: "Você precisa estar logado para fazer uma reserva."});
+      const errMsg = "Você precisa estar logado para fazer uma reserva.";
+      setAuthError(errMsg);
+      toast({ variant: "destructive", title: "Não Autenticado", description: errMsg });
       router.push('/login');
-      return Promise.reject(new Error("Usuário não autenticado"));
+      return Promise.reject(new Error(errMsg));
     }
+
+    let generatedBookingId = '';
+
     try {
-      const bookingWithUser: Omit<Booking, 'id'> = {
-        ...newBookingData,
-        userId: currentUser.id,
-        userName: currentUser.name,
-      };
-      await addDoc(collection(db, "bookings"), bookingWithUser);
-    } catch (error) {
-      console.error("Error adding booking: ", error);
-      toast({ variant: "destructive", title: "Erro na Reserva", description: "Não foi possível adicionar sua reserva." });
+      await runTransaction(db, async (transaction) => {
+        const bookingsRef = collection(db, "bookings");
+        const conflictQuery = query(
+          bookingsRef,
+          where("courtId", "==", newBookingData.courtId),
+          where("date", "==", newBookingData.date),
+          where("time", "==", newBookingData.time)
+        );
+
+        const conflictSnapshot = await transaction.get(conflictQuery);
+
+        if (!conflictSnapshot.empty) {
+          throw new Error("Este horário já foi reservado. Por favor, escolha outro.");
+        }
+
+        const newBookingDocRef = doc(collection(db, "bookings"));
+        generatedBookingId = newBookingDocRef.id;
+
+        const bookingToSave: Booking = {
+          id: generatedBookingId, // Store the ID within the document as well
+          userId: currentUser.id,
+          userName: currentUser.name,
+          courtId: newBookingData.courtId,
+          courtName: newBookingData.courtName,
+          courtType: newBookingData.courtType,
+          date: newBookingData.date,
+          time: newBookingData.time,
+        };
+        transaction.set(newBookingDocRef, bookingToSave);
+      });
+      return generatedBookingId; // Return the new booking ID
+    } catch (error: any) {
+      console.error("Error adding booking (transaction): ", error);
+      // Toast is handled by the calling component (BookingConfirmationDialog) to show specific error
       throw error; // Re-throw error to be caught by caller
     }
   };
@@ -180,17 +201,13 @@ export function AuthProvider({ children }: AuthProviderProps) {
     }
     try {
       const bookingDocRef = doc(db, "bookings", bookingId);
-      // Optionally, you could fetch the document first to ensure the current user is the owner,
-      // but Firestore rules should enforce this.
       await deleteDoc(bookingDocRef);
-      // The onSnapshot listener will automatically update the local bookings state.
-    } catch (error) {
+    } catch (error: any) {
       console.error("Error cancelling booking: ", error);
-      toast({ variant: "destructive", title: "Erro ao Cancelar", description: "Não foi possível cancelar sua reserva." });
-      throw error; // Re-throw error to be caught by caller
+      toast({ variant: "destructive", title: "Erro ao Cancelar", description: error.message || "Não foi possível cancelar sua reserva." });
+      throw error;
     }
   };
-
 
   useEffect(() => {
     const protectedRoutes = ['/my-bookings']; 
@@ -205,7 +222,6 @@ export function AuthProvider({ children }: AuthProviderProps) {
     </AuthContext.Provider>
   );
 }
-
 
 function getFirebaseErrorMessage(errorCode: string): string {
   switch (errorCode) {
@@ -229,4 +245,3 @@ function getFirebaseErrorMessage(errorCode: string): string {
       return "Ocorreu um erro de autenticação. Tente novamente.";
   }
 }
-

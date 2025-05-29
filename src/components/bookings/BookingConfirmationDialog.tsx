@@ -16,7 +16,7 @@ import {
 import { useAuth } from '@/hooks/useAuth';
 import { useToast } from '@/hooks/use-toast';
 import type { Court, Booking } from '@/lib/types';
-import { personalizedBookingConfirmation } from '@/ai/flows/booking-confirmation';
+import { personalizedBookingConfirmation, PersonalizedBookingConfirmationInput } from '@/ai/flows/booking-confirmation';
 import { Loader2, CalendarDays, Clock, UserCircle, Mail } from 'lucide-react';
 
 interface BookingConfirmationDialogProps {
@@ -58,29 +58,42 @@ export function BookingConfirmationDialog({
         time: selectedTime,
       };
 
-      await addBooking(bookingDataForDb); 
+      const actualBookingId = await addBooking(bookingDataForDb); 
 
-      const clientSideBookingId = `MSG-${Date.now()}`; 
-      const aiInput = {
+      const aiInput: PersonalizedBookingConfirmationInput = {
         userName: currentUser.name,
-        courtType: court.name,
+        courtType: court.name, // This is court.name, e.g. "Quadra Coberta"
         date: bookingDataForDb.date,
         time: bookingDataForDb.time,
-        bookingId: clientSideBookingId, 
+        bookingId: actualBookingId, 
       };
-      const aiResponse = await personalizedBookingConfirmation(aiInput);
+      
+      let confirmationMessage = `Reserva para ${court.name} em ${format(selectedDate, 'dd/MM/yyyy')} às ${selectedTime} confirmada!`;
+      let emailSubject = `Confirmação da sua reserva na Arena Klein Beach Tennis (ID: ${actualBookingId})`;
+      let emailBody = `Prezado(a) ${currentUser.name},\n\nSua reserva (ID: ${actualBookingId}) para a ${court.name} no dia ${format(selectedDate, 'dd/MM/yyyy')} às ${selectedTime} está confirmada.\n\nPor favor, chegue com 10 minutos de antecedência.\nEm caso de necessidade de cancelamento, acesse 'Minhas Reservas' em nosso site ou app.\n\nEstamos ansiosos para recebê-lo(a)!\n\nAtenciosamente,\nEquipe Arena Klein Beach Tennis`;
+
+      try {
+        const aiResponse = await personalizedBookingConfirmation(aiInput);
+        confirmationMessage = aiResponse.confirmationMessage;
+        emailSubject = aiResponse.emailSubject;
+        emailBody = aiResponse.emailBody;
+      } catch (aiError: any) {
+        console.warn("Falha ao gerar mensagem personalizada pela IA, usando fallback:", aiError.message);
+        // Usar mensagens de fallback já definidas acima.
+        // Poderia adicionar um toast específico para a falha da IA, se desejado.
+      }
+
 
       toast({
         title: "Reserva Confirmada!",
-        description: `${aiResponse.confirmationMessage} (Um email de confirmação também seria enviado).`,
+        description: `${confirmationMessage} (Um email de confirmação também seria enviado).`,
         duration: 7000, 
       });
 
-      // Simular envio de email logando no console
       console.log("--- Simulação de Envio de Email ---");
       console.log("Para:", currentUser.email);
-      console.log("Assunto:", aiResponse.emailSubject);
-      console.log("Corpo do Email:\n", aiResponse.emailBody);
+      console.log("Assunto:", emailSubject);
+      console.log("Corpo do Email:\n", emailBody);
       console.log("------------------------------------");
 
       onOpenChange(false);
@@ -98,7 +111,7 @@ export function BookingConfirmationDialog({
   };
 
   return (
-    <Dialog open={isOpen} onOpenChange={onOpenChange}>
+    <Dialog open={isOpen} onOpenChange={(open) => !isBooking && onOpenChange(open)}>
       <DialogContent className="sm:max-w-[425px]">
         <DialogHeader>
           <DialogTitle>Confirmar Sua Reserva</DialogTitle>
