@@ -23,7 +23,7 @@ import {
   setDoc, 
   serverTimestamp, 
   deleteDoc,
-  runTransaction // Import runTransaction
+  runTransaction 
 } from 'firebase/firestore';
 import { useToast } from "@/hooks/use-toast";
 
@@ -32,7 +32,7 @@ export const AuthContext = createContext<AuthContextType | undefined>(undefined)
 export function AuthProvider({ children }: AuthProviderProps) {
   const [currentUser, setCurrentUser] = useState<User | null>(null);
   const [bookings, setBookings] = useState<Booking[]>([]);
-  const [isLoading, setIsLoading] = useState(true); // Auth loading state
+  const [isLoading, setIsLoading] = useState(true); 
   const [authError, setAuthError] = useState<string | null>(null);
   const router = useRouter();
   const pathname = usePathname();
@@ -52,9 +52,8 @@ export function AuthProvider({ children }: AuthProviderProps) {
       setIsLoading(false);
     });
 
-    // Listener for all bookings (not user-specific for AvailabilityCalendar)
     const bookingsCol = collection(db, "bookings");
-    const q = query(bookingsCol); // Fetch all bookings
+    const q = query(bookingsCol); 
     
     const unsubscribeBookings = onSnapshot(q, (querySnapshot) => {
       const allBookings: Booking[] = [];
@@ -131,7 +130,6 @@ export function AuthProvider({ children }: AuthProviderProps) {
     try {
       await signOut(auth);
       setCurrentUser(null);
-      // Bookings state will persist with all bookings, which is fine for AvailabilityCalendar
       router.push('/login');
     } catch (error: any) {
       console.error("Logout error:", error);
@@ -170,11 +168,12 @@ export function AuthProvider({ children }: AuthProviderProps) {
           throw new Error("Este horário já foi reservado. Por favor, escolha outro.");
         }
 
-        const newBookingDocRef = doc(collection(db, "bookings"));
+        // Use doc(collection(...)) to generate a new ID
+        const newBookingDocRef = doc(collection(db, "bookings")); 
         generatedBookingId = newBookingDocRef.id;
 
         const bookingToSave: Booking = {
-          id: generatedBookingId, // Store the ID within the document as well
+          id: generatedBookingId, 
           userId: currentUser.id,
           userName: currentUser.name,
           courtId: newBookingData.courtId,
@@ -185,11 +184,10 @@ export function AuthProvider({ children }: AuthProviderProps) {
         };
         transaction.set(newBookingDocRef, bookingToSave);
       });
-      return generatedBookingId; // Return the new booking ID
+      return generatedBookingId; 
     } catch (error: any) {
       console.error("Error adding booking (transaction): ", error);
-      // Toast is handled by the calling component (BookingConfirmationDialog) to show specific error
-      throw error; // Re-throw error to be caught by caller
+      throw error; 
     }
   };
 
