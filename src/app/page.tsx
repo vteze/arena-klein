@@ -8,7 +8,7 @@ import { CourtCard } from '@/components/courts/CourtCard';
 import { AvailabilityCalendar } from '@/components/courts/AvailabilityCalendar';
 import { Separator } from '@/components/ui/separator';
 import { Button } from '@/components/ui/button';
-import { CalendarDays, ListChecks, PlusCircle } from 'lucide-react';
+import { CalendarDays, ListChecks } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 export default function HomePage() {
@@ -20,7 +20,7 @@ export default function HomePage() {
 
   return (
     <>
-      <div className="space-y-12">
+      <div className="space-y-8">
         <section className="relative overflow-hidden rounded-lg bg-gradient-to-br from-primary/10 via-background to-background py-16 sm:py-20 lg:py-24 text-center shadow-inner">
           <div className="absolute inset-0 bg-grid-slate-900/[0.04] bg-[bottom_1px_center] dark:bg-grid-slate-400/[0.05] dark:bg-bottom dark:border-b dark:border-slate-100/5"></div>
           <div className="relative px-4 sm:px-6 lg:px-8">
@@ -66,10 +66,17 @@ export default function HomePage() {
               Escolha a quadra ideal para o seu jogo.
             </p>
           </div>
-          {courts.map((court, index) => (
-            // Simplified content for diagnostics
-            <div key={court.id}>Court {court.name} - Index {index}</div>
-          ))}
+          {courts.map((court, index) => {
+            return (
+              <div key={court.id} className="flex flex-col items-center space-y-6">
+                <CourtCard court={court} className="w-full max-w-3xl" />
+                <AvailabilityCalendar court={court} className="w-full max-w-3xl" />
+                {index < courts.length - 1 && (
+                  <Separator className="my-8 w-full max-w-3xl" />
+                )}
+              </div>
+            );
+          })}
         </section>
       </div>
     </>
