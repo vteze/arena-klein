@@ -17,7 +17,7 @@ import {
   collection, 
   query, 
   where, 
-  getDocs, 
+  // getDocs, // Não usado diretamente aqui, mas onSnapshot usa internamente
   onSnapshot, 
   doc, 
   setDoc, 
@@ -29,9 +29,12 @@ import { useToast } from "@/hooks/use-toast";
 
 export const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
+const USERS_COLLECTION_NAME = "users";
+const RESERVAS_COLLECTION_NAME = "reservas"; // Nome da coleção em português
+
 export function AuthProvider({ children }: AuthProviderProps) {
   const [currentUser, setCurrentUser] = useState<User | null>(null);
-  const [bookings, setBookings] = useState<Booking[]>([]); // Agora será da coleção "reservas"
+  const [bookings, setBookings] = useState<Booking[]>([]);
   const [isLoading, setIsLoading] = useState(true); 
   const [authError, setAuthError] = useState<string | null>(null);
   const router = useRouter();
@@ -52,9 +55,8 @@ export function AuthProvider({ children }: AuthProviderProps) {
       setIsLoading(false);
     });
 
-    // Alterado para a nova coleção "reservas"
-    const reservasCol = collection(db, "reservas"); 
-    const q = query(reservasCol); 
+    const reservasColRef = collection(db, RESERVAS_COLLECTION_NAME); 
+    const q = query(reservasColRef); 
     
     const unsubscribeBookings = onSnapshot(q, (querySnapshot) => {
       const allBookings: Booking[] = [];
@@ -63,15 +65,15 @@ export function AuthProvider({ children }: AuthProviderProps) {
       });
       setBookings(allBookings);
     }, (error) => {
-      console.error("Erro ao buscar dados da coleção 'reservas' (verifique regras e índices do Firestore): ", error);
-      toast({ variant: "destructive", title: "Erro ao buscar dados de reservas", description: "Não foi possível carregar os dados de todas as reservas. Verifique as regras e índices do Firestore, e os logs do console." });
+      console.error(`Erro ao buscar dados da coleção '${RESERVAS_COLLECTION_NAME}' (verifique regras e índices do Firestore): `, error);
+      toast({ variant: "destructive", title: "Erro ao buscar dados de reservas", description: `Não foi possível carregar os dados de todas as reservas da coleção '${RESERVAS_COLLECTION_NAME}'. Verifique as regras e índices do Firestore, e os logs do console.` });
     });
 
     return () => {
       unsubscribeAuth();
       unsubscribeBookings();
     };
-  }, []);
+  }, []); // toast removido das dependências
 
 
   const clearAuthError = () => setAuthError(null);
@@ -100,7 +102,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
       if (userCredential.user) {
         await updateProfile(userCredential.user, { displayName: name });
         
-        const userDocRef = doc(db, "users", userCredential.user.uid);
+        const userDocRef = doc(db, USERS_COLLECTION_NAME, userCredential.user.uid);
         await setDoc(userDocRef, {
           uid: userCredential.user.uid,
           name: name,
@@ -144,7 +146,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
   };
 
   const addBooking = async (newBookingData: Omit<Booking, 'id' | 'userId' | 'userName'>): Promise<string> => {
-    console.log("addBooking (para coleção 'reservas') chamada com newBookingData:", JSON.stringify(newBookingData));
+    console.log(`addBooking (para coleção '${RESERVAS_COLLECTION_NAME}') chamada com newBookingData:`, JSON.stringify(newBookingData));
 
     if (!currentUser) {
       const errMsg = "Você precisa estar logado para fazer uma reserva.";
@@ -193,11 +195,11 @@ export function AuthProvider({ children }: AuthProviderProps) {
     }
 
     let generatedBookingId = '';
+    console.log(`Iniciando transação para a coleção '${RESERVAS_COLLECTION_NAME}'. Verifique o índice (courtId ASC, date ASC, time ASC) com ESCOPO DE COLEÇÃO.`);
 
     try {
       await runTransaction(db, async (transaction) => {
-        // Alterado para a nova coleção "reservas"
-        const reservasRef = collection(db, "reservas");
+        const reservasRef = collection(db, RESERVAS_COLLECTION_NAME);
         
         const conflictQuery = query(
           reservasRef,
@@ -207,7 +209,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
         );
         
         console.log(
-            "Tentando obter snapshot de conflito com a query na coleção 'reservas'. Certifique-se que o índice do Firestore para (courtId, date, time) na coleção 'reservas' com ESCOPO DE COLEÇÃO existe e está ATIVO.",
+            `Dentro da transação, prestes a executar transaction.get() na coleção '${RESERVAS_COLLECTION_NAME}' com os seguintes critérios: courtId='${courtIdStr}', date='${dateStr}', time='${timeStr}'. GARANTA QUE O ÍNDICE COMPOSTO (courtId ASC, date ASC, time ASC) com ESCOPO DE COLEÇÃO para '${RESERVAS_COLLECTION_NAME}' EXISTA E ESTEJA ATIVO NO FIREBASE CONSOLE.`,
             "Objeto da Query:", conflictQuery 
         );
         
@@ -217,8 +219,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
           throw new Error("Este horário já foi reservado. Por favor, escolha outro.");
         }
 
-        // Alterado para a nova coleção "reservas"
-        const newBookingDocRef = doc(collection(db, "reservas")); 
+        const newBookingDocRef = doc(collection(db, RESERVAS_COLLECTION_NAME)); 
         generatedBookingId = newBookingDocRef.id;
 
         const bookingToSave: Booking = {
@@ -235,39 +236,39 @@ export function AuthProvider({ children }: AuthProviderProps) {
       });
       return generatedBookingId; 
     } catch (error: any) {
-        console.error(
-            "Erro ao adicionar reserva (transação ou pré-transação) na coleção 'reservas'. Nome do Erro:", error.name,
-            "Código do Erro:", error.code, 
-            "Mensagem do Erro:", error.message,
-            "Objeto de Erro Completo:", error
-        );
-        
-        if (error.name === 'TypeError' && error.message.includes("Cannot read properties of undefined (reading 'path')")) {
-            toast({
-                variant: "destructive",
-                title: "FALHA CRÍTICA NA RESERVA (Erro Interno Firestore)",
-                description: `Ocorreu um erro interno GRAVE no Firestore (TypeError: ...reading 'path') ao tentar verificar a disponibilidade na coleção 'reservas'. ISSO É ALTAMENTE INCOMUM SE O ÍNDICE ESTIVER CORRETO. VERIFIQUE IMEDIATAMENTE no Console do Firebase se o índice composto (courtId ASC, date ASC, time ASC) na coleção 'reservas' com ESCOPO DE COLEÇÃO está 1000% CORRETO e ATIVO. Se estiver e o erro persistir, o problema é mais profundo. Detalhe: ${error.message}`,
-                duration: 30000
-            });
-        } else if (error.message && (error.message.toLowerCase().includes("index") || error.message.includes("FIRESTORE_INDEX_NEARBY") || (error.code === 'failed-precondition' && error.message.toLowerCase().includes("query requires an index")) )) {
-           toast({ 
-             variant: "destructive", 
-             title: "Erro de Configuração do Banco (Índice Ausente?)", 
-             description: "Um índice necessário no Firestore para a coleção 'reservas' está faltando ou incorreto. Verifique o console para um link para criá-lo ou crie-o manualmente (campos: courtId ASC, date ASC, time ASC na coleção 'reservas' com escopo de 'Coleção')." ,
-             duration: 15000 
-            });
-        } else if (error.message === "Este horário já foi reservado. Por favor, escolha outro.") {
-           toast({ variant: "destructive", title: "Horário Indisponível", description: error.message });
-        }
-         else {
-          toast({ 
-              variant: "destructive", 
-              title: "Falha na Reserva", 
-              description: `Não foi possível processar sua reserva. Detalhe: ${error.message || 'Erro desconhecido.'}`,
-              duration: 10000 
+      console.error(
+        `Erro ao adicionar reserva (transação ou pré-transação) na coleção '${RESERVAS_COLLECTION_NAME}'. Nome do Erro:`, error.name,
+        "Código do Erro:", error.code, 
+        "Mensagem do Erro:", error.message,
+        "Objeto de Erro Completo:", error
+      );
+      
+      if (error.name === 'TypeError' && error.message.includes("Cannot read properties of undefined (reading 'path')")) {
+        toast({
+            variant: "destructive",
+            title: "FALHA CRÍTICA NA RESERVA (Erro Interno Firestore)",
+            description: `Ocorreu um erro interno GRAVE no Firestore (TypeError: ...reading 'path') ao tentar verificar a disponibilidade na '${RESERVAS_COLLECTION_NAME}'. Se o índice (courtId ASC, date ASC, time ASC) com ESCOPO DE COLEÇÃO para '${RESERVAS_COLLECTION_NAME}' está 100% CORRETO e ATIVO, o problema é mais profundo. Verifique os dados de entrada logados no console. Detalhe: ${error.message}`,
+            duration: 30000
+        });
+      } else if (error.message && (error.message.toLowerCase().includes("index") || error.message.includes("FIRESTORE_INDEX_NEARBY") || (error.code === 'failed-precondition' && error.message.toLowerCase().includes("query requires an index")) )) {
+         toast({ 
+           variant: "destructive", 
+           title: "Erro de Configuração do Banco (Índice Ausente?)", 
+           description: `Um índice necessário no Firestore para a coleção '${RESERVAS_COLLECTION_NAME}' está faltando ou incorreto. Verifique o console para um link para criá-lo ou crie-o manualmente (campos: courtId ASC, date ASC, time ASC na coleção '${RESERVAS_COLLECTION_NAME}' com escopo de 'Coleção').` ,
+           duration: 15000 
           });
-        }
-        throw error;
+      } else if (error.message === "Este horário já foi reservado. Por favor, escolha outro.") {
+         toast({ variant: "destructive", title: "Horário Indisponível", description: error.message });
+      }
+       else {
+        toast({ 
+            variant: "destructive", 
+            title: "Falha na Reserva", 
+            description: `Não foi possível processar sua reserva. Detalhe: ${error.message || 'Erro desconhecido.'}`,
+            duration: 10000 
+        });
+      }
+      throw error;
     }
   };
 
@@ -278,8 +279,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
       return Promise.reject(new Error("Usuário não autenticado"));
     }
     try {
-      // Alterado para a nova coleção "reservas"
-      const bookingDocRef = doc(db, "reservas", bookingId);
+      const bookingDocRef = doc(db, RESERVAS_COLLECTION_NAME, bookingId);
       await deleteDoc(bookingDocRef);
     } catch (error: any) {
       console.error("Erro ao cancelar reserva: ", error);
@@ -323,6 +323,4 @@ function getFirebaseErrorMessage(errorCode: string): string {
       return "Ocorreu um erro de autenticação. Tente novamente.";
   }
 }
-    
-
     
