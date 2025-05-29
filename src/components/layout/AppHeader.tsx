@@ -59,7 +59,10 @@ export function AppHeader() {
         <div className="container flex h-16 items-center justify-between">
           <div className="flex items-center gap-2">
             <Skeleton className="h-9 w-9 rounded-sm" />
-            <Skeleton className="h-6 w-24 sm:w-40 rounded bg-muted" /> {/* Responsive skeleton for name */}
+            {/* Skeleton for the full name, visible sm and up */}
+            <Skeleton className="h-6 w-40 rounded bg-muted hidden sm:inline-block" />
+            {/* Skeleton for "AK", visible xs only */}
+            <Skeleton className="h-6 w-10 rounded bg-muted sm:hidden" />
           </div>
           {/* Basic skeleton for nav icons */}
           <div className="hidden sm:flex items-center gap-2">
