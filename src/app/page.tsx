@@ -8,6 +8,7 @@ import { CourtCard } from '@/components/courts/CourtCard';
 import { AvailabilityCalendar } from '@/components/courts/AvailabilityCalendar';
 import { Separator } from '@/components/ui/separator';
 import { Button } from '@/components/ui/button';
+import { CalendarDays, ListChecks } from 'lucide-react';
 
 export default function HomePage() {
   const [isClient, setIsClient] = useState(false);
@@ -31,10 +32,16 @@ export default function HomePage() {
             {isClient ? (
               <>
                 <Button asChild size="lg" className="bg-accent hover:bg-accent/90 text-accent-foreground shadow-md hover:shadow-lg transition-shadow">
-                  <Link href="#courts-section">Ver Quadras</Link>
+                  <Link href="#courts-section">
+                    <CalendarDays />
+                    Ver Quadras
+                  </Link>
                 </Button>
                 <Button asChild size="lg" variant="outline" className="shadow-md hover:shadow-lg transition-shadow">
-                  <Link href="/my-bookings">Minhas Reservas</Link>
+                  <Link href="/my-bookings">
+                    <ListChecks />
+                    Minhas Reservas
+                  </Link>
                 </Button>
               </>
             ) : (

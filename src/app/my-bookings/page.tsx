@@ -6,7 +6,7 @@ import { useRouter } from 'next/navigation';
 import { useAuth } from '@/hooks/useAuth';
 import { BookingListItem } from '@/components/bookings/BookingListItem';
 import { Skeleton } from '@/components/ui/skeleton';
-import { AlertCircle, ListChecks } from 'lucide-react';
+import { AlertCircle, ListChecks, PlusCircle } from 'lucide-react';
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from '@/components/ui/button';
 import Link from 'next/link';
@@ -56,8 +56,11 @@ export default function MyBookingsPage() {
           <ListChecks className="h-10 w-10 text-primary"/>
           <h1 className="text-3xl font-bold tracking-tight">Minhas Reservas</h1>
         </div>
-        <Button asChild variant="outline">
-          <Link href="/">Reservar Nova Quadra</Link>
+        <Button asChild variant="default" size="lg">
+          <Link href="/">
+            <PlusCircle />
+            Reservar Nova Quadra
+          </Link>
         </Button>
       </div>
       
