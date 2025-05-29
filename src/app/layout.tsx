@@ -1,20 +1,28 @@
 
 import type {Metadata} from 'next';
-import { Geist, Geist_Mono } from 'next/font/google'; // Assuming Geist is local or handled by Next.js build
+import localFont from 'next/font/local'; // Changed from next/font/google
 import './globals.css';
 import { AuthProvider } from '@/contexts/AuthContext';
 import { AppHeader } from '@/components/layout/AppHeader';
 import { Toaster } from "@/components/ui/toaster";
 import { cn } from '@/lib/utils';
 
-const geistSans = Geist({
+// Configure Geist Sans locally
+// Make sure GeistVariableVF.woff2 is in src/app/fonts/
+const geistSans = localFont({
+  src: './fonts/GeistVariableVF.woff2', // Path relative to this layout.tsx file
   variable: '--font-geist-sans',
-  subsets: ['latin'],
+  display: 'swap',
+  weight: '100 900', // Specify weight range for variable font
 });
 
-const geistMono = Geist_Mono({
+// Configure Geist Mono locally
+// Make sure GeistMonoVariableVF.woff2 is in src/app/fonts/
+const geistMono = localFont({
+  src: './fonts/GeistMonoVariableVF.woff2', // Path relative to this layout.tsx file
   variable: '--font-geist-mono',
-  subsets: ['latin'],
+  display: 'swap',
+  weight: '100 900', // Specify weight range for variable font
 });
 
 export const metadata: Metadata = {
