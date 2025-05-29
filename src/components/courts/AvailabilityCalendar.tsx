@@ -12,7 +12,7 @@ import { useAuth } from '@/hooks/useAuth';
 import { useRouter } from 'next/navigation';
 import { availableTimeSlots, playSlotsConfig } from '@/config/appConfig';
 import { BookingConfirmationDialog } from '@/components/bookings/BookingConfirmationDialog';
-import { AlertCircle, Swords } from 'lucide-react'; // Import Swords
+import { AlertCircle, Swords } from 'lucide-react';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { cn } from '@/lib/utils';
 import { toast } from "@/hooks/use-toast";
@@ -77,8 +77,8 @@ export function AvailabilityCalendar({
         
         return {
           time: slotTime,
-          isBooked: isBookedByRegularBooking, // Only reflects individual bookings on this specific court
-          isPlayTime: isDuringPlayTime,     // True if this general time is for "Play" (affects both courts)
+          isBooked: isBookedByRegularBooking, 
+          isPlayTime: isDuringPlayTime,     
         };
       });
       setTimeSlots(slots);
@@ -122,7 +122,6 @@ export function AvailabilityCalendar({
               className="rounded-md border shadow-sm"
               disabled={(date) => date < today}
               locale={ptBR}
-              // initialFocus removed to prevent auto-scroll
             />
           </div>
           <div className="flex-grow">
@@ -140,36 +139,39 @@ export function AvailabilityCalendar({
                 ) : timeSlots.length > 0 ? (
                   <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-2">
                     {timeSlots.map(slot => {
-                      // An individual slot is unavailable if:
-                      // 1. It's generally Play time (isPlayTime is true).
-                      // 2. Or, it's specifically booked for this court (slot.isBooked is true).
-                      const isEffectivelyUnavailable = slot.isPlayTime || slot.isBooked;
-                      
                       let buttonVariant: "destructive" | "outline" | "default" = "outline";
                       let buttonText = slot.time;
                       let IconComponent = null;
+                      let isDisabled = false;
+                      let onClickAction = () => handleTimeSlotClick(slot.time);
+                      let ariaLabel = `Reservar ${slot.time}`;
 
-                      if (slot.isBooked) { // Specifically booked for THIS court
-                        buttonVariant = "destructive";
-                      } else if (slot.isPlayTime) { // General Play time (affects both courts)
+                      if (slot.isPlayTime) {
                         buttonVariant = "default"; // Use primary color for Play indication
                         buttonText = "Play!";
-                        IconComponent = Swords; // Use Swords icon for Play
+                        IconComponent = Swords;
+                        isDisabled = false; // Play slots are clickable
+                        onClickAction = () => router.push('/play');
+                        ariaLabel = `Ir para a página de Play (horário ${slot.time})`;
+                      } else if (slot.isBooked) {
+                        buttonVariant = "destructive";
+                        isDisabled = true;
+                        ariaLabel = `Horário ${slot.time} indisponível`;
                       }
-
+                      
                       return (
                         <Button
                           key={slot.time}
                           variant={buttonVariant}
-                          disabled={isEffectivelyUnavailable}
-                          onClick={() => !isEffectivelyUnavailable && handleTimeSlotClick(slot.time)}
+                          disabled={isDisabled}
+                          onClick={onClickAction}
                           className={cn(
                             "w-full transition-colors duration-150 ease-in-out group",
-                            isEffectivelyUnavailable && 'cursor-not-allowed opacity-70',
-                            slot.isPlayTime && !slot.isBooked && 'bg-accent text-accent-foreground hover:bg-accent/90 focus:bg-accent/90',
-                            !isEffectivelyUnavailable && 'hover:bg-primary hover:text-primary-foreground focus:bg-primary focus:text-primary-foreground'
+                            isDisabled && 'cursor-not-allowed opacity-70',
+                            slot.isPlayTime && 'bg-accent text-accent-foreground hover:bg-accent/90 focus:bg-accent/90',
+                            !slot.isPlayTime && !slot.isBooked && 'hover:bg-primary hover:text-primary-foreground focus:bg-primary focus:text-primary-foreground'
                           )}
-                          aria-label={slot.isPlayTime && !slot.isBooked ? `Horário de Play ${slot.time}` : slot.isBooked ? `Horário ${slot.time} indisponível` : `Reservar ${slot.time}`}
+                          aria-label={ariaLabel}
                         >
                           {IconComponent && <IconComponent className="mr-1 h-4 w-4 group-hover:text-accent-foreground" />}
                           {buttonText}
@@ -193,7 +195,7 @@ export function AvailabilityCalendar({
           </div>
         </div>
       </CardContent>
-      {currentSelectedDate && selectedTimeSlot && (
+      {currentSelectedDate && selectedTimeSlot && !isTimeInPlaySession(currentSelectedDate, selectedTimeSlot, playSlotsConfig) && (
         <BookingConfirmationDialog
           isOpen={isDialogOpen}
           onOpenChange={setIsDialogOpen}
