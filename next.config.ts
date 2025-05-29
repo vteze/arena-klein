@@ -1,3 +1,4 @@
+
 import type {NextConfig} from 'next';
 
 const nextConfig: NextConfig = {
@@ -19,6 +20,18 @@ const nextConfig: NextConfig = {
       {
         protocol: 'https',
         hostname: 'instagram.fpoa33-1.fna.fbcdn.net',
+        port: '',
+        pathname: '/**',
+      },
+      {
+        protocol: 'https',
+        hostname: 'manalinda.cdn.magazord.com.br',
+        port: '',
+        pathname: '/**',
+      },
+      {
+        protocol: 'https',
+        hostname: 'static.wixstatic.com',
         port: '',
         pathname: '/**',
       }
