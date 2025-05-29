@@ -8,7 +8,7 @@ export const courts: Court[] = [
     id: 'covered-court',
     name: 'Quadra Coberta',
     type: 'covered',
-    imageUrl: 'https://placehold.co/600x400.png',
+    imageUrl: 'https://placehold.co/600x400/E0E0E0/E0E0E0.png', // Updated to hide default text
     description: 'Jogue confortavelmente independentemente do clima em nossa quadra coberta premium.',
     dataAiHint: 'praia coberta',
   },
@@ -16,7 +16,7 @@ export const courts: Court[] = [
     id: 'uncovered-court',
     name: 'Quadra Descoberta',
     type: 'uncovered',
-    imageUrl: 'https://placehold.co/600x400.png',
+    imageUrl: 'https://placehold.co/600x400/E0E0E0/E0E0E0.png', // Updated to hide default text
     description: 'Aproveite o sol e o ar fresco em nossa espaçosa quadra descoberta.',
     dataAiHint: 'praia sol',
   },
