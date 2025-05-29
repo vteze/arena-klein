@@ -1,7 +1,7 @@
 
 "use client";
 
-import type { PlaySignUp, PlaySlotConfig, User } from '@/lib/types';
+import type { PlaySignUp, PlaySlotConfig } from '@/lib/types';
 import { useAuth } from '@/hooks/useAuth';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
@@ -13,11 +13,12 @@ import Link from 'next/link';
 
 interface PlaySlotDisplayProps {
   slotConfig: PlaySlotConfig;
-  date: string; // YYYY-MM-DD
+  date: string; // YYYY-MM-DD (for logic)
+  displayDate: string; // dd/MM (for display in title)
   allSignUps: PlaySignUp[]; // Todas as inscrições para filtrar
 }
 
-export function PlaySlotDisplay({ slotConfig, date, allSignUps }: PlaySlotDisplayProps) {
+export function PlaySlotDisplay({ slotConfig, date, displayDate, allSignUps }: PlaySlotDisplayProps) {
   const { currentUser, signUpForPlaySlot, cancelPlaySlotSignUp, isLoading: authLoading } = useAuth();
   const [isSubmitting, setIsSubmitting] = useState(false);
 
@@ -33,8 +34,6 @@ export function PlaySlotDisplay({ slotConfig, date, allSignUps }: PlaySlotDispla
 
   const handleSignUp = async () => {
     if (!currentUser) {
-      // Idealmente, redirecionar para login, mas o AuthContext já faz isso.
-      // Apenas garantir que o botão não seja clicável se não houver usuário.
       return;
     }
     setIsSubmitting(true);
@@ -45,7 +44,6 @@ export function PlaySlotDisplay({ slotConfig, date, allSignUps }: PlaySlotDispla
         userEmail: currentUser.email,
       });
     } catch (error) {
-      // O toast de erro já é tratado no AuthContext
       console.error("Erro no handleSignUp:", error);
     } finally {
       setIsSubmitting(false);
@@ -58,7 +56,6 @@ export function PlaySlotDisplay({ slotConfig, date, allSignUps }: PlaySlotDispla
     try {
       await cancelPlaySlotSignUp(currentUserSignUp.id);
     } catch (error) {
-      // O toast de erro já é tratado no AuthContext
       console.error("Erro no handleCancelSignUp:", error);
     } finally {
       setIsSubmitting(false);
@@ -78,7 +75,7 @@ export function PlaySlotDisplay({ slotConfig, date, allSignUps }: PlaySlotDispla
   return (
     <Card className="shadow-lg">
       <CardHeader>
-        <CardTitle className="text-xl">{slotConfig.label} - {date}</CardTitle>
+        <CardTitle className="text-xl">{slotConfig.label} - {displayDate}</CardTitle>
         <CardDescription>{slotConfig.timeRange}</CardDescription>
       </CardHeader>
       <CardContent>

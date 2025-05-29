@@ -1,7 +1,7 @@
 
 "use client";
 
-import { useState, useEffect } from 'react'; // Added useState and useEffect
+import { useState, useEffect } from 'react';
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { ListChecks, CalendarClock, Users, Swords, CalendarDays } from "lucide-react";
@@ -15,36 +15,35 @@ import { Separator } from "@/components/ui/separator";
 import { Skeleton } from "@/components/ui/skeleton";
 
 // Função para gerar as próximas N datas para um dia da semana específico
-const getNextOccurrences = (dayOfWeek: number, count: number): string[] => {
-  const dates: string[] = [];
+const getNextOccurrences = (dayOfWeek: number, count: number): Array<{ date: string; displayDate: string }> => {
+  const occurrences: Array<{ date: string; displayDate: string }> = [];
   let currentDate = new Date();
   currentDate.setHours(0,0,0,0); // Normalizar para o início do dia
 
   for (let i = 0; i < count; i++) {
     const nextOccurrenceDate = nextDay(currentDate, dayOfWeek);
-    dates.push(format(nextOccurrenceDate, 'yyyy-MM-dd'));
+    occurrences.push({
+      date: format(nextOccurrenceDate, 'yyyy-MM-dd'), // Para lógica interna
+      displayDate: format(nextOccurrenceDate, 'dd/MM', { locale: ptBR }) // Para exibição
+    });
     currentDate = nextOccurrenceDate; 
   }
-  return dates;
+  return occurrences;
 };
 
 function PlayPage() {
   const { playSignUps, isLoading: authLoading } = useAuth();
-  const [isClient, setIsClient] = useState(false); // Added isClient state
+  const [isClient, setIsClient] = useState(false);
   const today = new Date();
   today.setHours(0,0,0,0);
 
-  useEffect(() => { // Added useEffect to set isClient
+  useEffect(() => {
     setIsClient(true);
   }, []);
 
   const upcomingPlaySlots = playSlotsConfig.map(slot => ({
     ...slot,
     dates: getNextOccurrences(slot.dayOfWeek, numberOfWeeksToDisplayPlaySlots)
-            .map(dateStr => ({
-                date: dateStr,
-                formattedDate: format(new Date(dateStr + 'T00:00:00'), "EEEE, dd 'de' MMMM", { locale: ptBR })
-            }))
             .filter(d => new Date(d.date + 'T00:00:00') >= today) 
   }));
 
@@ -81,7 +80,8 @@ function PlayPage() {
                   <PlaySlotDisplay
                     key={`${slotType.key}-${dateInfo.date}`}
                     slotConfig={slotType}
-                    date={dateInfo.date}
+                    date={dateInfo.date} // YYYY-MM-DD for logic
+                    displayDate={dateInfo.displayDate} // dd/MM for title
                     allSignUps={playSignUps}
                   />
                 ))}
@@ -153,13 +153,11 @@ function PlayPage() {
             </Link>
           </Button>
         ) : (
-          <div className="h-11 w-64 rounded-md bg-muted opacity-50 mx-auto" /> // Placeholder
+          <div className="h-11 w-64 rounded-md bg-muted opacity-50 mx-auto" />
         )}
       </section>
     </div>
   );
 }
-
-// PlayPage.displayName = "PlayPage"; // Not strictly necessary for default export
 
 export default PlayPage;
