@@ -18,7 +18,7 @@ const faqData: FaqItem[] = [
   {
     question: "Preciso levar minha própria raquete e bolinhas?",
     answer:
-      "Oferecemos aluguel de raquetes e bolinhas na recepção sem taxas extras. Você também é bem-vindo a trazer seu próprio equipamento, se preferir.",
+      "Oferecemos raquetes e bolinhas na recepção. Você também é bem-vindo a trazer seu próprio equipamento, se preferir.",
   },
   {
     question: "Qual tipo de calçado devo usar para jogar beach tennis?",
