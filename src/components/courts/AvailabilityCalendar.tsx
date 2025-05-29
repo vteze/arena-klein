@@ -2,12 +2,12 @@
 "use client";
 
 import { useState, useEffect } from 'react';
-import { format, parse, isEqual, startOfDay } from 'date-fns';
+import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { Calendar } from "@/components/ui/calendar";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import type { Court, TimeSlot, Booking } from '@/lib/types';
+import type { Court, TimeSlot } from '@/lib/types';
 import { useAuth } from '@/hooks/useAuth';
 import { useRouter } from 'next/navigation';
 import { availableTimeSlots } from '@/config/appConfig';
@@ -19,10 +19,17 @@ import { cn } from '@/lib/utils';
 interface AvailabilityCalendarProps {
   court: Court;
   className?: string;
+  currentSelectedDate?: Date; // Changed from selectedDate
+  onDateSelect: (date?: Date) => void; // New prop to handle date selection
 }
 
-export function AvailabilityCalendar({ court, className }: AvailabilityCalendarProps) {
-  const [selectedDate, setSelectedDate] = useState<Date | undefined>(new Date());
+export function AvailabilityCalendar({
+  court,
+  className,
+  currentSelectedDate,
+  onDateSelect,
+}: AvailabilityCalendarProps) {
+  // Local state for time slots and dialog management, selectedDate is now a prop
   const [timeSlots, setTimeSlots] = useState<TimeSlot[]>([]);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [selectedTimeSlot, setSelectedTimeSlot] = useState<string | null>(null);
@@ -31,8 +38,8 @@ export function AvailabilityCalendar({ court, className }: AvailabilityCalendarP
   const router = useRouter();
 
   useEffect(() => {
-    if (selectedDate && !authIsLoading) {
-      const formattedSelectedDate = format(selectedDate, 'yyyy-MM-dd');
+    if (currentSelectedDate && !authIsLoading) {
+      const formattedSelectedDate = format(currentSelectedDate, 'yyyy-MM-dd');
       const slots = availableTimeSlots.map(slotTime => {
         const isBooked = bookings.some(
           booking =>
@@ -43,19 +50,30 @@ export function AvailabilityCalendar({ court, className }: AvailabilityCalendarP
         return { time: slotTime, isBooked };
       });
       setTimeSlots(slots);
+    } else {
+      setTimeSlots([]); // Clear time slots if no date is selected
     }
-  }, [selectedDate, court.id, bookings, authIsLoading]);
+  }, [currentSelectedDate, court.id, bookings, authIsLoading]);
 
   const handleTimeSlotClick = (time: string) => {
     if (!currentUser) {
       router.push('/login');
       return;
     }
+    if (!currentSelectedDate) { // Should not happen if button is enabled, but good check
+        toast({
+            title: "Erro",
+            description: "Por favor, selecione uma data primeiro.",
+            variant: "destructive"
+        })
+        return;
+    }
     setSelectedTimeSlot(time);
     setIsDialogOpen(true);
   };
 
-  const today = startOfDay(new Date());
+  const today = new Date();
+  today.setHours(0, 0, 0, 0); // Normalize today to the start of the day for comparison
 
   return (
     <Card className={cn(className)}>
@@ -64,21 +82,21 @@ export function AvailabilityCalendar({ court, className }: AvailabilityCalendarP
       </CardHeader>
       <CardContent className="space-y-6">
         <div className="flex flex-col md:flex-row gap-6">
-          <div className="flex-shrink-0 mx-auto md:mx-0"> {/* Center calendar on small screens */}
+          <div className="flex-shrink-0 mx-auto md:mx-0">
             <Calendar
               mode="single"
-              selected={selectedDate}
-              onSelect={setSelectedDate}
+              selected={currentSelectedDate}
+              onSelect={onDateSelect} // Use the passed-in handler
               className="rounded-md border shadow-sm"
               disabled={(date) => date < today}
               locale={ptBR}
             />
           </div>
           <div className="flex-grow">
-            {selectedDate ? (
+            {currentSelectedDate ? (
               <>
-                <h3 className="text-lg font-semibold mb-3 text-center md:text-left"> {/* Center title on small screens */}
-                  Horários Disponíveis para {format(selectedDate, "dd 'de' MMMM 'de' yyyy", { locale: ptBR })}:
+                <h3 className="text-lg font-semibold mb-3 text-center md:text-left">
+                  Horários Disponíveis para {format(currentSelectedDate, "dd 'de' MMMM 'de' yyyy", { locale: ptBR })}:
                 </h3>
                 {authIsLoading ? (
                    <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-2">
@@ -87,7 +105,7 @@ export function AvailabilityCalendar({ court, className }: AvailabilityCalendarP
                     ))}
                   </div>
                 ) : timeSlots.length > 0 ? (
-                  <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-2"> {/* Adjusted grid for consistency */}
+                  <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-2">
                     {timeSlots.map(slot => (
                       <Button
                         key={slot.time}
@@ -106,7 +124,7 @@ export function AvailabilityCalendar({ court, className }: AvailabilityCalendarP
                     ))}
                   </div>
                 ) : (
-                  <p className="text-muted-foreground text-center md:text-left">Nenhum horário configurado.</p>
+                  <p className="text-muted-foreground text-center md:text-left">Nenhum horário configurado para esta data ou quadra.</p>
                 )}
               </>
             ) : (
@@ -114,22 +132,25 @@ export function AvailabilityCalendar({ court, className }: AvailabilityCalendarP
                 <AlertCircle className="h-4 w-4" />
                 <AlertTitle>Selecione uma Data</AlertTitle>
                 <AlertDescription>
-                  Por favor, escolha uma data no calendário para ver os horários disponíveis.
+                  Por favor, escolha uma data no calendário para ver os horários disponíveis para esta quadra.
                 </AlertDescription>
               </Alert>
             )}
           </div>
         </div>
       </CardContent>
-      {selectedDate && selectedTimeSlot && (
+      {currentSelectedDate && selectedTimeSlot && (
         <BookingConfirmationDialog
           isOpen={isDialogOpen}
           onOpenChange={setIsDialogOpen}
           court={court}
-          selectedDate={selectedDate}
+          selectedDate={currentSelectedDate} // Pass the globally selected date
           selectedTime={selectedTimeSlot}
         />
       )}
     </Card>
   );
 }
+
+// Minimal toast for internal use if needed, ensure useToast is imported if used more broadly
+import { toast } from "@/hooks/use-toast";

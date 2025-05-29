@@ -13,6 +13,8 @@ import { cn } from '@/lib/utils';
 
 export default function HomePage() {
   const [isClient, setIsClient] = useState(false);
+  // Lifted state for globally selected date
+  const [globallySelectedDate, setGloballySelectedDate] = useState<Date | undefined>(new Date());
 
   useEffect(() => {
     setIsClient(true);
@@ -20,7 +22,7 @@ export default function HomePage() {
 
   return (
     <>
-      <div className="space-y-8">
+      <div className="space-y-10"> {/* Adjusted overall page spacing */}
         <section className="relative overflow-hidden rounded-lg bg-gradient-to-br from-primary/10 via-background to-background py-16 sm:py-20 lg:py-24 text-center shadow-inner">
           <div className="absolute inset-0 bg-grid-slate-900/[0.04] bg-[bottom_1px_center] dark:bg-grid-slate-400/[0.05] dark:bg-bottom dark:border-b dark:border-slate-100/5"></div>
           <div className="relative px-4 sm:px-6 lg:px-8">
@@ -58,7 +60,7 @@ export default function HomePage() {
         </section>
 
         <section id="courts-section" className="space-y-10">
-          <div className="text-center mb-10 sm:mb-12">
+          <div className="text-center mb-10 sm:mb-12"> {/* Adjusted spacing */}
             <h2 className="text-3xl font-bold tracking-tight text-primary sm:text-4xl">
               Nossas Quadras
             </h2>
@@ -68,11 +70,16 @@ export default function HomePage() {
           </div>
           {courts.map((court, index) => {
             return (
-              <div key={court.id} className="flex flex-col items-center space-y-6">
+              <div key={court.id} className="flex flex-col items-center space-y-6"> {/* Reduced spacing between card and calendar */}
                 <CourtCard court={court} className="w-full max-w-3xl" />
-                <AvailabilityCalendar court={court} className="w-full max-w-3xl" />
+                <AvailabilityCalendar
+                  court={court}
+                  className="w-full max-w-3xl"
+                  currentSelectedDate={globallySelectedDate}
+                  onDateSelect={setGloballySelectedDate}
+                />
                 {index < courts.length - 1 && (
-                  <Separator className="my-8 w-full max-w-3xl" />
+                  <Separator className="my-8 w-full max-w-3xl" /> /* Adjusted separator margin */
                 )}
               </div>
             );
