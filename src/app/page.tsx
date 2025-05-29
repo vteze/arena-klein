@@ -1,12 +1,21 @@
 
+"use client"; // Add this line to make it a Client Component
+
+import { useState, useEffect } from 'react'; // Import hooks
+import Link from 'next/link';
 import { courts } from '@/config/appConfig';
 import { CourtCard } from '@/components/courts/CourtCard';
 import { AvailabilityCalendar } from '@/components/courts/AvailabilityCalendar';
 import { Separator } from '@/components/ui/separator';
 import { Button } from '@/components/ui/button';
-import Link from 'next/link';
 
 export default function HomePage() {
+  const [isClient, setIsClient] = useState(false);
+
+  useEffect(() => {
+    setIsClient(true);
+  }, []);
+
   return (
     <div className="space-y-16">
       <section className="relative overflow-hidden rounded-lg bg-gradient-to-br from-primary/10 via-background to-background py-16 sm:py-20 lg:py-24 text-center shadow-inner">
@@ -19,12 +28,22 @@ export default function HomePage() {
             Seu paraíso particular para o beach tennis. Reserve sua quadra e venha se divertir!
           </p>
           <div className="mt-10 flex flex-col sm:flex-row gap-4 justify-center">
-            <Button asChild size="lg" className="bg-accent hover:bg-accent/90 text-accent-foreground shadow-md hover:shadow-lg transition-shadow">
-              <Link href="#courts-section">Ver Quadras</Link>
-            </Button>
-            <Button asChild size="lg" variant="outline" className="shadow-md hover:shadow-lg transition-shadow">
-              <Link href="/my-bookings">Minhas Reservas</Link>
-            </Button>
+            {isClient ? (
+              <>
+                <Button asChild size="lg" className="bg-accent hover:bg-accent/90 text-accent-foreground shadow-md hover:shadow-lg transition-shadow">
+                  <Link href="#courts-section">Ver Quadras</Link>
+                </Button>
+                <Button asChild size="lg" variant="outline" className="shadow-md hover:shadow-lg transition-shadow">
+                  <Link href="/my-bookings">Minhas Reservas</Link>
+                </Button>
+              </>
+            ) : (
+              <>
+                {/* Placeholder to match server render and avoid layout shift */}
+                <div className="h-11 w-full sm:w-40 rounded-md bg-muted opacity-50" />
+                <div className="h-11 w-full sm:w-48 rounded-md bg-muted opacity-50" />
+              </>
+            )}
           </div>
         </div>
       </section>
