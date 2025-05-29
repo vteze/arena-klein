@@ -14,11 +14,11 @@ export const courts: Court[] = [
   },
   {
     id: 'uncovered-court',
-    name: 'Quadra Descoberta',
+    name: 'Quadra Não-Coberta', // Nome alterado
     type: 'uncovered',
     imageUrl: 'https://manalinda.cdn.magazord.com.br/img/2024/02/blog/4491/beach-tennis.jpg',
-    description: 'Aproveite o sol e o ar fresco em nossa espaçosa quadra descoberta.',
-    dataAiHint: 'beachtennis sol',
+    description: 'Aproveite o sol e o ar fresco em nossa espaçosa quadra não-coberta.', // Descrição atualizada
+    dataAiHint: 'beachtennis nao-coberta', // Hint atualizado
   },
 ];
 

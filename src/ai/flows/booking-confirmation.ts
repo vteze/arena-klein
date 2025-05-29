@@ -3,11 +3,12 @@
 'use server';
 
 /**
- * @fileOverview Este arquivo define um fluxo Genkit para gerar mensagens personalizadas de confirmação de reserva.
+ * @fileOverview Este arquivo define um fluxo Genkit para gerar mensagens personalizadas de confirmação de reserva,
+ * incluindo conteúdo para um email de confirmação.
  *
- * - personalizedBookingConfirmation - Uma função que gera uma mensagem personalizada de confirmação de reserva.
- * - PersonalizedBookingConfirmationInput - O tipo de entrada para a função personalizedBookingConfirmation.
- * - PersonalizedBookingConfirmationOutput - O tipo de retorno para a função personalizedBookingConfirmation.
+ * - personalizedBookingConfirmation - Uma função que gera uma mensagem personalizada e conteúdo de email.
+ * - PersonalizedBookingConfirmationInput - O tipo de entrada para a função.
+ * - PersonalizedBookingConfirmationOutput - O tipo de retorno para a função.
  */
 
 import {ai} from '@/ai/genkit';
@@ -23,7 +24,9 @@ const PersonalizedBookingConfirmationInputSchema = z.object({
 export type PersonalizedBookingConfirmationInput = z.infer<typeof PersonalizedBookingConfirmationInputSchema>;
 
 const PersonalizedBookingConfirmationOutputSchema = z.object({
-  confirmationMessage: z.string().describe('Uma mensagem personalizada de confirmação de reserva.'),
+  confirmationMessage: z.string().describe('Uma mensagem curta e amigável para o toast de confirmação de reserva.'),
+  emailSubject: z.string().describe('O assunto do email de confirmação da reserva.'),
+  emailBody: z.string().describe('O corpo completo (texto simples ou HTML básico) do email de confirmação da reserva, incluindo todos os detalhes.'),
 });
 export type PersonalizedBookingConfirmationOutput = z.infer<typeof PersonalizedBookingConfirmationOutputSchema>;
 
@@ -39,26 +42,43 @@ const bookingConfirmationPrompt = ai.definePrompt({
   output: {schema: PersonalizedBookingConfirmationOutputSchema},
   prompt: `
 Você é um assistente da Arena Klein Beach Tennis.
-Sua tarefa é gerar uma mensagem de confirmação de reserva amigável e clara.
-Use os seguintes detalhes para a mensagem:
+Sua tarefa é gerar:
+1. Uma mensagem CURTA e AMIGÁVEL de confirmação de reserva para ser exibida em um toast.
+2. O ASSUNTO para um email de confirmação.
+3. O CORPO DETALHADO para um email de confirmação.
+
+Use os seguintes detalhes para a mensagem e o email:
 - Nome do Usuário: {{userName}}
 - ID da Reserva: {{bookingId}}
 - Tipo de Quadra: {{courtType}}
 - Data: {{date}}
 - Hora: {{time}}
 
-Crie uma mensagem de confirmação que seja acolhedora. Inclua uma frase como "Estamos ansiosos para recebê-lo(a)!".
-Assine a mensagem como "Atenciosamente, Arena Klein Beach Tennis".
+Para a mensagem CURTA (confirmationMessage): Crie algo acolhedor e direto.
+Ex: "Reserva confirmada, {{userName}}! Sua {{courtType}} para {{date}} às {{time}} está garantida."
 
-IMPORTANTE: Após criar a mensagem de confirmação, sua resposta DEVE SER OBRIGATORIAMENTE um objeto JSON.
-Este objeto JSON deve conter EXATAMENTE uma chave chamada "confirmationMessage".
-O valor desta chave "confirmationMessage" deve ser a string completa da mensagem de confirmação que você gerou.
+Para o ASSUNTO do email (emailSubject): Seja claro e informativo.
+Ex: "Confirmação da sua reserva na Arena Klein Beach Tennis (ID: {{bookingId}})"
+
+Para o CORPO do email (emailBody):
+- Comece com uma saudação (Prezado(a) {{userName}},).
+- Confirme os detalhes da reserva de forma clara (Quadra, Data, Hora, ID da Reserva).
+- Inclua uma frase como "Estamos ansiosos para recebê-lo(a)!".
+- Adicione informações úteis, como "Chegue com 10 minutos de antecedência." e "Em caso de necessidade de cancelamento, acesse 'Minhas Reservas' em nosso site ou app.".
+- Termine com "Atenciosamente, Equipe Arena Klein Beach Tennis".
+- Formate o corpo do email para ser legível (pode ser texto simples, com quebras de linha).
+
+IMPORTANTE: Sua resposta DEVE SER OBRIGATORIAMENTE um objeto JSON.
+Este objeto JSON deve conter EXATAMENTE três chaves: "confirmationMessage", "emailSubject", e "emailBody".
+Os valores destas chaves devem ser as strings que você gerou.
 
 Exemplo da ESTRUTURA JSON DE SAÍDA OBRIGATÓRIA:
 {
-  "confirmationMessage": "Prezado(a) {{userName}}, sua reserva (ID: {{bookingId}}) para a {{courtType}} no dia {{date}} às {{time}} está confirmada. Estamos ansiosos para recebê-lo(a)! Atenciosamente, Arena Klein Beach Tennis"
+  "confirmationMessage": "Reserva confirmada, {{userName}}!",
+  "emailSubject": "Sua reserva na Arena Klein (ID: {{bookingId}}) está confirmada!",
+  "emailBody": "Prezado(a) {{userName}},\\n\\nSua reserva (ID: {{bookingId}}) para a {{courtType}} no dia {{date}} às {{time}} está confirmada.\\n\\nPor favor, chegue com 10 minutos de antecedência.\\nEm caso de necessidade de cancelamento, acesse 'Minhas Reservas' em nosso site ou app.\\n\\nEstamos ansiosos para recebê-lo(a)!\\n\\nAtenciosamente,\\nEquipe Arena Klein Beach Tennis"
 }
-Certifique-se de que a mensagem real seja adaptada aos detalhes fornecidos.
+Certifique-se de que o conteúdo real seja adaptado aos detalhes fornecidos. Use \\n para quebras de linha no emailBody se estiver gerando texto simples.
 `,
 });
 
@@ -70,24 +90,24 @@ const personalizedBookingConfirmationFlow = ai.defineFlow(
   },
   async input => {
     const response = await bookingConfirmationPrompt(input);
-    if (!response.output) {
+    if (!response.output || !response.output.confirmationMessage || !response.output.emailSubject || !response.output.emailBody) {
       let aiTextResponse = 'N/A';
-      let detailedError = 'A resposta da IA estava vazia ou em formato incorreto (sem output estruturado).';
+      let detailedError = 'A resposta da IA estava vazia, incompleta ou em formato incorreto (sem output estruturado esperado).';
       try {
-        aiTextResponse = response.text; // Acessa o texto bruto da IA
-        detailedError = `A resposta da IA não pôde ser processada no formato esperado. Texto recebido (início): ${aiTextResponse.substring(0,150)}...`;
+        aiTextResponse = response.text || JSON.stringify(response.output); // Acessa o texto bruto ou o output parcial
+        detailedError = `A resposta da IA não pôde ser processada no formato esperado. Resposta recebida (início): ${aiTextResponse.substring(0,150)}...`;
       } catch (e) {
-        aiTextResponse = 'Erro ao tentar acessar response.text.';
+        aiTextResponse = 'Erro ao tentar acessar response.text ou response.output.';
         detailedError = 'Erro crítico ao tentar ler a resposta da IA.';
       }
       
       console.error(
-        'Falha no Genkit prompt (bookingConfirmationPrompt): Não retornou um output estruturado válido.',
+        'Falha no Genkit prompt (bookingConfirmationPrompt): Não retornou um output estruturado válido com todos os campos esperados.',
         'Input fornecido:', input,
-        'Texto bruto da IA (response.text):', aiTextResponse,
-        'Objeto de resposta completo da IA (response):', JSON.stringify(response) // Loga o objeto response completo
+        'Texto/Output bruto da IA:', aiTextResponse,
+        'Objeto de resposta completo da IA (response):', JSON.stringify(response)
       );
-      throw new Error(`Falha ao gerar a mensagem de confirmação pela IA. ${detailedError}`);
+      throw new Error(`Falha ao gerar a mensagem e email de confirmação pela IA. ${detailedError}`);
     }
     return response.output;
   }
