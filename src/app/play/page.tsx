@@ -1,6 +1,7 @@
 
 "use client";
 
+import { useState, useEffect } from 'react'; // Added useState and useEffect
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { ListChecks, CalendarClock, Users, Swords, CalendarDays } from "lucide-react";
@@ -29,8 +30,13 @@ const getNextOccurrences = (dayOfWeek: number, count: number): string[] => {
 
 function PlayPage() {
   const { playSignUps, isLoading: authLoading } = useAuth();
+  const [isClient, setIsClient] = useState(false); // Added isClient state
   const today = new Date();
   today.setHours(0,0,0,0);
+
+  useEffect(() => { // Added useEffect to set isClient
+    setIsClient(true);
+  }, []);
 
   const upcomingPlaySlots = playSlotsConfig.map(slot => ({
     ...slot,
@@ -52,7 +58,7 @@ function PlayPage() {
           </h1>
         </div>
         <p className="text-lg text-foreground/70 max-w-3xl mx-auto">
-          Junte-se às nossas sessões "Play"! Horários fixos, vagas limitadas, muita diversão e a chance de conhecer novos parceiros de jogo. Inscreva-se individualmente e garanta sua partida.
+          Junte-se às nossas sessões "Play"! Horários fixos, vagas limitadas ({maxParticipantsPerPlaySlot} por sessão), muita diversão e a chance de conhecer novos parceiros de jogo. Inscreva-se individualmente e garanta sua partida. As sessões "Play" utilizam ambas as quadras.
         </p>
       </header>
 
@@ -139,17 +145,21 @@ function PlayPage() {
         <p className="text-lg text-foreground/70 mb-8 max-w-xl mx-auto">
           Não perca tempo! Verifique as datas disponíveis acima e garanta sua vaga nas próximas sessões "Play". Estamos te esperando!
         </p>
-        <Button size="lg" className="bg-accent hover:bg-accent/90 text-accent-foreground shadow-md hover:shadow-lg transition-shadow" asChild>
-          <Link href="#upcoming-play-sessions">
-            <CalendarClock className="mr-2 h-5 w-5" />
-            Ver Sessões e Inscrever-se
-          </Link>
-        </Button>
+        {isClient ? (
+          <Button size="lg" className="bg-accent hover:bg-accent/90 text-accent-foreground shadow-md hover:shadow-lg transition-shadow" asChild>
+            <Link href="#upcoming-play-sessions">
+              <CalendarClock className="mr-2 h-5 w-5" />
+              Ver Sessões e Inscrever-se
+            </Link>
+          </Button>
+        ) : (
+          <div className="h-11 w-64 rounded-md bg-muted opacity-50 mx-auto" /> // Placeholder
+        )}
       </section>
     </div>
   );
 }
 
-PlayPage.displayName = "PlayPage";
+// PlayPage.displayName = "PlayPage"; // Not strictly necessary for default export
 
 export default PlayPage;
