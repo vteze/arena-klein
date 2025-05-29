@@ -37,6 +37,7 @@ export function AppHeader() {
     if (playIndex !== -1) {
       navLinks.splice(playIndex + 1, 0, { href: '/my-bookings', label: 'Minhas Reservas', icon: ListChecks });
     } else {
+      // Fallback if '/play' is not found for some reason, though it should be.
       navLinks.push({ href: '/my-bookings', label: 'Minhas Reservas', icon: ListChecks });
     }
   }
@@ -58,10 +59,16 @@ export function AppHeader() {
         <div className="container flex h-16 items-center justify-between">
           <div className="flex items-center gap-2">
             <Skeleton className="h-9 w-9 rounded-sm" />
-            <Skeleton className="h-6 w-40 rounded bg-muted" />
+            <Skeleton className="h-6 w-24 sm:w-40 rounded bg-muted" /> {/* Responsive skeleton for name */}
+          </div>
+          {/* Basic skeleton for nav icons */}
+          <div className="hidden sm:flex items-center gap-2">
+            {[...Array(navLinksBase.length)].map((_, i) => (
+              <Skeleton key={i} className="h-8 w-8 rounded-md bg-muted" />
+            ))}
           </div>
           <div className="flex items-center gap-2">
-            <Skeleton className="h-9 w-24 rounded-md bg-muted" />
+            <Skeleton className="h-9 w-20 sm:w-24 rounded-md bg-muted" /> {/* Auth placeholder */}
           </div>
         </div>
       </header>
@@ -71,18 +78,23 @@ export function AppHeader() {
   return (
     <header className="sticky top-0 z-50 w-full border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
       <div className="container flex h-16 items-center">
-        <Link href="/" className="mr-3 sm:mr-4 md:mr-6 flex items-center gap-2 shrink-0">
+        <Link href="/" className="mr-2 flex items-center gap-2 shrink-0"> {/* Reduced margin */}
           <AppLogo />
-          <span className="font-semibold text-base sm:text-lg">{APP_NAME}</span>
+          {/* Full name: hidden by default (xs), visible from 'sm' upwards */}
+          <span className="font-semibold text-base sm:text-lg hidden sm:inline">{APP_NAME}</span>
+          {/* Short name 'AK': visible by default (on xs), hidden from 'sm' upwards */}
+          <span className="font-semibold text-base sm:text-lg sm:hidden">AK</span>
         </Link>
         
-        <nav className="flex items-center gap-1 text-sm font-medium overflow-x-auto whitespace-nowrap">
+        {/* Nav Links: removed overflow-x-auto and whitespace-nowrap */}
+        <nav className="flex items-center text-sm font-medium">
           {navLinks.map(link => (
             <Link
               key={link.href}
               href={link.href}
               className={cn(
-                "flex items-center gap-2 p-2 md:px-3 rounded-md transition-colors hover:bg-accent hover:text-accent-foreground shrink-0",
+                "flex items-center gap-2 p-2 rounded-md transition-colors hover:bg-accent hover:text-accent-foreground shrink-0",
+                "md:px-3", // Apply more horizontal padding when text is visible
                 pathname === link.href ? "bg-accent text-accent-foreground" : "text-muted-foreground hover:text-foreground/80"
               )}
             >
