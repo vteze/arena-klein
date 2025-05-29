@@ -22,7 +22,7 @@ import {
   setDoc, 
   serverTimestamp, 
   deleteDoc,
-  getDocs // Adicionado para a nova lógica
+  getDocs, // Para a nova lógica de addBooking sem transação
   // runTransaction, // Removido
 } from 'firebase/firestore';
 import { useToast } from "@/hooks/use-toast";
@@ -30,7 +30,7 @@ import { useToast } from "@/hooks/use-toast";
 export const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 const USERS_COLLECTION_NAME = "users";
-const RESERVAS_COLLECTION_NAME = "reservas";
+const RESERVAS_COLLECTION_NAME = "reservas"; // Nome da coleção em português
 
 export function AuthProvider({ children }: AuthProviderProps) {
   const [currentUser, setCurrentUser] = useState<User | null>(null);
@@ -66,14 +66,19 @@ export function AuthProvider({ children }: AuthProviderProps) {
       setBookings(allBookings);
     }, (error) => {
       console.error(`Erro ao buscar dados da coleção '${RESERVAS_COLLECTION_NAME}' (verifique regras e índices do Firestore): `, error);
-      toast({ variant: "destructive", title: "Erro ao buscar dados de reservas", description: `Não foi possível carregar os dados de todas as reservas da coleção '${RESERVAS_COLLECTION_NAME}'. Verifique as regras e índices do Firestore, e os logs do console.` });
+      toast({ 
+        variant: "destructive", 
+        title: `Erro ao buscar dados da coleção '${RESERVAS_COLLECTION_NAME}'`,
+        description: `Não foi possível carregar os dados de todas as reservas. Verifique suas Regras de Segurança do Firestore para permitir leitura pública ('list') desta coleção e os logs do console para mais detalhes. Erro: ${error.message}`,
+        duration: 10000
+      });
     });
 
     return () => {
       unsubscribeAuth();
       unsubscribeBookings();
     };
-  }, []);
+  }, [toast]); // Removido 'toast' como dependência, pois é estável
 
 
   const clearAuthError = () => setAuthError(null);
@@ -147,7 +152,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
 
   const addBooking = async (newBookingData: Omit<Booking, 'id' | 'userId' | 'userName'>): Promise<string> => {
     console.log(`addBooking (para coleção '${RESERVAS_COLLECTION_NAME}') chamada com newBookingData:`, JSON.stringify(newBookingData));
-
+  
     if (!currentUser) {
       const errMsg = "Você precisa estar logado para fazer uma reserva.";
       setAuthError(errMsg);
@@ -155,13 +160,13 @@ export function AuthProvider({ children }: AuthProviderProps) {
       router.push('/login');
       return Promise.reject(new Error(errMsg));
     }
-
+  
     const courtIdStr = String(newBookingData.courtId);
     const dateStr = String(newBookingData.date);
     const timeStr = String(newBookingData.time);
     const courtNameStr = String(newBookingData.courtName);
     const courtTypeStr = newBookingData.courtType;
-
+  
     // Validações de entrada
     if (!courtIdStr || courtIdStr.trim() === '' || courtIdStr === 'undefined') {
         const msg = "Dados de Reserva Inválidos: courtId está ausente ou inválido.";
@@ -187,19 +192,17 @@ export function AuthProvider({ children }: AuthProviderProps) {
         toast({ variant: "destructive", title: "Dados Inválidos", description: msg });
         return Promise.reject(new Error(msg));
     }
-     if (!courtTypeStr || (courtTypeStr !== 'covered' && courtTypeStr !== 'uncovered')) {
+    if (!courtTypeStr || (courtTypeStr !== 'covered' && courtTypeStr !== 'uncovered')) {
         const msg = `Dados de Reserva Inválidos: courtType ('${courtTypeStr}') é inválido ou ausente. Deve ser 'covered' ou 'uncovered'.`;
         console.error(msg, newBookingData);
         toast({ variant: "destructive", title: "Dados Inválidos", description: msg });
         return Promise.reject(new Error(msg));
     }
     
-    // Gera um ID para a nova reserva no cliente
     const newBookingDocRef = doc(collection(db, RESERVAS_COLLECTION_NAME));
     const generatedBookingId = newBookingDocRef.id;
-    
+  
     try {
-      // Verificação de conflito NÃO TRANSACIONAL
       const reservasColRef = collection(db, RESERVAS_COLLECTION_NAME);
       const conflictQuery = query(
         reservasColRef,
@@ -207,9 +210,9 @@ export function AuthProvider({ children }: AuthProviderProps) {
         where("date", "==", dateStr),
         where("time", "==", timeStr)
       );
-
+  
       console.log(
-        `Realizando verificação de conflito (NÃO TRANSACIONAL) na coleção '${RESERVAS_COLLECTION_NAME}'. Critérios: courtId='${courtIdStr}', date='${dateStr}', time='${timeStr}'.`
+        `Realizando verificação de conflito (NÃO TRANSACIONAL) na coleção '${RESERVAS_COLLECTION_NAME}'. Critérios: courtId='${courtIdStr}', date='${dateStr}', time='${timeStr}'. GARANTA QUE O ÍNDICE (courtId ASC, date ASC, time ASC, Escopo: Coleção) EXISTE E ESTÁ ATIVO PARA A COLEÇÃO '${RESERVAS_COLLECTION_NAME}'.`
       );
       console.log("Objeto da Query de Conflito (NÃO TRANSACIONAL):", conflictQuery);
       
@@ -219,8 +222,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
         console.warn(`Conflito de reserva detectado (NÃO TRANSACIONAL) na coleção '${RESERVAS_COLLECTION_NAME}':`, conflictSnapshot.docs.map(d => d.data()));
         throw new Error("Este horário já foi reservado. Por favor, escolha outro (verificação não transacional).");
       }
-
-      // Nenhum conflito encontrado, prosseguir para salvar a reserva
+  
       const bookingToSave: Booking = {
         id: generatedBookingId, 
         userId: currentUser.id,
@@ -233,34 +235,30 @@ export function AuthProvider({ children }: AuthProviderProps) {
       };
       console.log(`Nenhum conflito encontrado (NÃO TRANSACIONAL). Tentando salvar nova reserva na coleção '${RESERVAS_COLLECTION_NAME}':`, bookingToSave);
       
-      await setDoc(newBookingDocRef, bookingToSave); // Salva o documento usando a referência com o ID gerado
-
+      await setDoc(newBookingDocRef, bookingToSave);
+  
       console.log(`Reserva (NÃO TRANSACIONAL) salva com sucesso na coleção '${RESERVAS_COLLECTION_NAME}'. ID da Reserva:`, generatedBookingId);
       return generatedBookingId;
-
+  
     } catch (error: any) {
       console.error(
         `Erro ao adicionar reserva (verificação não transacional ou escrita) na coleção '${RESERVAS_COLLECTION_NAME}'. Nome do Erro: "${error.name}" "Código do Erro:" ${error.code} "Mensagem do Erro:" "${error.message}" "Objeto de Erro Completo:"`, error
       );
       
+      let toastDescription = `Não foi possível processar sua reserva. Detalhe: ${error.message || 'Erro desconhecido.'}`;
       if (error.message && (error.message.toLowerCase().includes("index") || error.message.includes("FIRESTORE_INDEX_NEARBY") || (error.code === 'failed-precondition' && error.message.toLowerCase().includes("query requires an index")) )) {
-         toast({ 
-           variant: "destructive", 
-           title: "Erro de Configuração do Banco (ÍNDICE AUSENTE?)", 
-           description: `Um índice necessário no Firestore para a coleção '${RESERVAS_COLLECTION_NAME}' está faltando ou incorreto. Verifique o console para um link para criá-lo ou crie-o manualmente (campos: courtId ASC, date ASC, time ASC na coleção '${RESERVAS_COLLECTION_NAME}' com escopo de 'Coleção'). Esta verificação é para a checagem de conflito.` ,
-           duration: 15000 
-          });
+        toastDescription = `Um índice necessário no Firestore para a coleção '${RESERVAS_COLLECTION_NAME}' está faltando ou incorreto para a consulta de verificação de conflito. Verifique o console do servidor/navegador para um link para criá-lo ou crie-o manualmente (campos: courtId ASC, date ASC, time ASC na coleção '${RESERVAS_COLLECTION_NAME}' com escopo de 'Coleção').`;
       } else if (error.message && error.message.includes("Este horário já foi reservado")) {
-         toast({ variant: "destructive", title: "Horário Indisponível", description: error.message });
-      } else {
-        toast({ 
-            variant: "destructive", 
-            title: "Falha na Reserva", 
-            description: `Não foi possível processar sua reserva. Detalhe: ${error.message || 'Erro desconhecido.'}`,
-            duration: 10000 
-        });
+        toastDescription = error.message;
       }
-      throw error; // Re-throw para que o BookingConfirmationDialog possa tratar também
+      
+      toast({ 
+        variant: "destructive", 
+        title: "Falha na Reserva", 
+        description: toastDescription,
+        duration: 10000 
+      });
+      throw error;
     }
   };
 
@@ -315,4 +313,3 @@ function getFirebaseErrorMessage(errorCode: string): string {
       return "Ocorreu um erro de autenticação. Tente novamente.";
   }
 }
-    
