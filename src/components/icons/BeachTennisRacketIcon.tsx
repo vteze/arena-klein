@@ -1,6 +1,9 @@
 
 import type { SVGProps } from 'react';
 
+// Este componente não está mais sendo usado diretamente no AppHeader,
+// foi substituído por AppLogo.tsx.
+// Mantido caso seja útil em outro lugar ou para referência.
 export function BeachTennisRacketIcon(props: SVGProps<SVGSVGElement>) {
   return (
     <svg

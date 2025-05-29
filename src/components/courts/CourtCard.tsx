@@ -2,7 +2,7 @@
 import Image from 'next/image';
 import type { Court } from '@/lib/types';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Asterisk } from 'lucide-react'; // Changed from Sun, CloudSun
+import { Asterisk } from 'lucide-react'; 
 
 interface CourtCardProps {
   court: Court;
@@ -24,7 +24,7 @@ export function CourtCard({ court }: CourtCardProps) {
       </CardHeader>
       <CardContent className="p-6">
         <CardTitle className="flex items-center gap-2 text-2xl mb-2">
-          <Asterisk className="h-6 w-6 text-primary" /> {/* Changed icon to Asterisk for both types */}
+          <Asterisk className="h-6 w-6 text-primary" />
           {court.name}
         </CardTitle>
         <CardDescription>{court.description}</CardDescription>

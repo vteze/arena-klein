@@ -1,28 +1,29 @@
+
 // Booking Confirmation Flow
 'use server';
 
 /**
- * @fileOverview This file defines a Genkit flow for generating personalized booking confirmation messages.
+ * @fileOverview Este arquivo define um fluxo Genkit para gerar mensagens personalizadas de confirmação de reserva.
  *
- * - personalizedBookingConfirmation - A function that generates a personalized booking confirmation message.
- * - PersonalizedBookingConfirmationInput - The input type for the personalizedBookingConfirmation function.
- * - PersonalizedBookingConfirmationOutput - The return type for the personalizedBookingConfirmation function.
+ * - personalizedBookingConfirmation - Uma função que gera uma mensagem personalizada de confirmação de reserva.
+ * - PersonalizedBookingConfirmationInput - O tipo de entrada para a função personalizedBookingConfirmation.
+ * - PersonalizedBookingConfirmationOutput - O tipo de retorno para a função personalizedBookingConfirmation.
  */
 
 import {ai} from '@/ai/genkit';
 import {z} from 'genkit';
 
 const PersonalizedBookingConfirmationInputSchema = z.object({
-  userName: z.string().describe('The name of the user who made the booking.'),
-  courtType: z.string().describe('The type of court booked (e.g., covered, uncovered).'),
-  date: z.string().describe('The date of the booking (YYYY-MM-DD).'),
-  time: z.string().describe('The time of the booking (HH:mm).'),
-  bookingId: z.string().describe('The unique identifier for the booking.'),
+  userName: z.string().describe('O nome do usuário que fez a reserva.'),
+  courtType: z.string().describe('O tipo de quadra reservada (ex: coberta, descoberta).'),
+  date: z.string().describe('A data da reserva (AAAA-MM-DD).'),
+  time: z.string().describe('A hora da reserva (HH:mm).'),
+  bookingId: z.string().describe('O identificador único da reserva.'),
 });
 export type PersonalizedBookingConfirmationInput = z.infer<typeof PersonalizedBookingConfirmationInputSchema>;
 
 const PersonalizedBookingConfirmationOutputSchema = z.object({
-  confirmationMessage: z.string().describe('A personalized booking confirmation message.'),
+  confirmationMessage: z.string().describe('Uma mensagem personalizada de confirmação de reserva.'),
 });
 export type PersonalizedBookingConfirmationOutput = z.infer<typeof PersonalizedBookingConfirmationOutputSchema>;
 
@@ -36,11 +37,11 @@ const bookingConfirmationPrompt = ai.definePrompt({
   name: 'bookingConfirmationPrompt',
   input: {schema: PersonalizedBookingConfirmationInputSchema},
   output: {schema: PersonalizedBookingConfirmationOutputSchema},
-  prompt: `Dear {{userName}},
+  prompt: `Prezado(a) {{userName}},
 
-This confirms your booking with booking ID {{bookingId}} for the {{courtType}} court on {{date}} at {{time}}. We look forward to seeing you!
+Confirmamos sua reserva com o ID {{bookingId}} para a quadra {{courtType}} no dia {{date}} às {{time}}. Estamos ansiosos para recebê-lo(a)!
 
-Sincerely,
+Atenciosamente,
 Arena Klein Beach Tennis`,
 });
 

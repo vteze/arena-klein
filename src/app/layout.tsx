@@ -19,7 +19,7 @@ const geistMono = Geist_Mono({
 
 export const metadata: Metadata = {
   title: 'Arena Klein Beach Tennis',
-  description: 'Book your beach tennis court at Arena Klein.',
+  description: 'Reserve sua quadra de beach tennis na Arena Klein.',
 };
 
 export default function RootLayout({
@@ -28,7 +28,7 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en" suppressHydrationWarning>
+    <html lang="pt-BR" suppressHydrationWarning>
       <body className={cn("min-h-screen bg-background font-sans antialiased", geistSans.variable, geistMono.variable)}>
         <AuthProvider>
           <div className="relative flex min-h-screen flex-col">

@@ -6,19 +6,19 @@ export const APP_NAME = "Arena Klein Beach Tennis";
 export const courts: Court[] = [
   {
     id: 'covered-court',
-    name: 'Covered Court',
+    name: 'Quadra Coberta',
     type: 'covered',
     imageUrl: 'https://placehold.co/600x400.png',
-    description: 'Play comfortably regardless of the weather on our premium covered court.',
-    dataAiHint: 'beach covered',
+    description: 'Jogue confortavelmente independentemente do clima em nossa quadra coberta premium.',
+    dataAiHint: 'praia coberta',
   },
   {
     id: 'uncovered-court',
-    name: 'Uncovered Court',
+    name: 'Quadra Descoberta',
     type: 'uncovered',
     imageUrl: 'https://placehold.co/600x400.png',
-    description: 'Enjoy the sunshine and fresh air on our spacious uncovered court.',
-    dataAiHint: 'beach sun',
+    description: 'Aproveite o sol e o ar fresco em nossa espaçosa quadra descoberta.',
+    dataAiHint: 'praia sol',
   },
 ];
 

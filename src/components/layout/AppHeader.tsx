@@ -8,7 +8,7 @@ import { APP_NAME } from '@/config/appConfig';
 import { useAuth } from '@/hooks/useAuth';
 import { Button } from '@/components/ui/button';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
-import { BeachTennisRacketIcon } from '@/components/icons/BeachTennisRacketIcon';
+import { AppLogo } from '@/components/icons/AppLogo'; // Changed import
 import { cn } from '@/lib/utils';
 import {
   DropdownMenu,
@@ -24,8 +24,8 @@ export function AppHeader() {
   const pathname = usePathname();
 
   const navLinks = [
-    { href: '/', label: 'Home', icon: HomeLucideIcon },
-    { href: '/my-bookings', label: 'My Bookings', icon: ListChecks },
+    { href: '/', label: 'Início', icon: HomeLucideIcon },
+    { href: '/my-bookings', label: 'Minhas Reservas', icon: ListChecks },
   ];
 
   const getInitials = (name: string = "") => {
@@ -54,7 +54,7 @@ export function AppHeader() {
     <header className="sticky top-0 z-50 w-full border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
       <div className="container flex h-16 items-center">
         <Link href="/" className="mr-8 flex items-center gap-2">
-          <BeachTennisRacketIcon className="h-7 w-7 text-primary" />
+          <AppLogo /> {/* Changed to AppLogo */}
           <span className="font-bold text-lg whitespace-nowrap">{APP_NAME}</span>
         </Link>
         
@@ -80,7 +80,7 @@ export function AppHeader() {
               <DropdownMenuTrigger asChild>
                 <Button variant="ghost" className="relative h-10 w-10 rounded-full">
                   <Avatar className="h-10 w-10">
-                    <AvatarImage src={`https://placehold.co/100x100.png?text=${getInitials(currentUser.name)}`} alt={currentUser.name} data-ai-hint="profile avatar" />
+                    <AvatarImage src={`https://placehold.co/100x100.png?text=${getInitials(currentUser.name)}`} alt={currentUser.name} data-ai-hint="avatar perfil" />
                     <AvatarFallback>{getInitials(currentUser.name)}</AvatarFallback>
                   </Avatar>
                 </Button>
@@ -97,7 +97,7 @@ export function AppHeader() {
                 <DropdownMenuSeparator />
                 <DropdownMenuItem onClick={logout}>
                   <LogOut className="mr-2 h-4 w-4" />
-                  <span>Log out</span>
+                  <span>Sair</span>
                 </DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>
@@ -105,7 +105,7 @@ export function AppHeader() {
             <Button asChild variant="outline">
               <Link href="/login">
                 <LogIn className="mr-2 h-4 w-4" />
-                Login
+                Entrar
               </Link>
             </Button>
           )}

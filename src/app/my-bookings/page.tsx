@@ -51,7 +51,7 @@ export default function MyBookingsPage() {
     <div className="space-y-8">
       <div className="flex items-center gap-3">
         <ListChecks className="h-10 w-10 text-primary"/>
-        <h1 className="text-3xl font-bold tracking-tight">My Bookings</h1>
+        <h1 className="text-3xl font-bold tracking-tight">Minhas Reservas</h1>
       </div>
       
       {userBookings.length > 0 ? (
@@ -63,9 +63,9 @@ export default function MyBookingsPage() {
       ) : (
         <Alert>
           <AlertCircle className="h-4 w-4" />
-          <AlertTitle>No Bookings Yet</AlertTitle>
+          <AlertTitle>Nenhuma Reserva Ainda</AlertTitle>
           <AlertDescription>
-            You haven't made any court bookings. Head over to the home page to reserve a court!
+            Você ainda não fez nenhuma reserva de quadra. Vá para a página inicial para reservar uma quadra!
           </AlertDescription>
         </Alert>
       )}

@@ -3,6 +3,7 @@
 
 import { useState, useEffect } from 'react';
 import { format, parse, isEqual, startOfDay } from 'date-fns';
+import { ptBR } from 'date-fns/locale';
 import { Calendar } from "@/components/ui/calendar";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -57,7 +58,7 @@ export function AvailabilityCalendar({ court }: AvailabilityCalendarProps) {
   return (
     <Card>
       <CardHeader>
-        <CardTitle className="text-xl">Check Availability</CardTitle>
+        <CardTitle className="text-xl">Verificar Disponibilidade</CardTitle>
       </CardHeader>
       <CardContent className="space-y-6">
         <div className="flex flex-col md:flex-row gap-6">
@@ -69,13 +70,14 @@ export function AvailabilityCalendar({ court }: AvailabilityCalendarProps) {
               className="rounded-md border shadow-sm"
               disabled={(date) => date < today}
               initialFocus
+              locale={ptBR}
             />
           </div>
           <div className="flex-grow">
             {selectedDate ? (
               <>
                 <h3 className="text-lg font-semibold mb-3">
-                  Available Slots for {format(selectedDate, 'MMMM do, yyyy')}:
+                  Horários Disponíveis para {format(selectedDate, "dd 'de' MMMM 'de' yyyy", { locale: ptBR })}:
                 </h3>
                 {authIsLoading ? (
                    <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-2">
@@ -98,15 +100,15 @@ export function AvailabilityCalendar({ court }: AvailabilityCalendarProps) {
                     ))}
                   </div>
                 ) : (
-                  <p className="text-muted-foreground">No time slots configured.</p>
+                  <p className="text-muted-foreground">Nenhum horário configurado.</p>
                 )}
               </>
             ) : (
               <Alert>
                 <AlertCircle className="h-4 w-4" />
-                <AlertTitle>Select a Date</AlertTitle>
+                <AlertTitle>Selecione uma Data</AlertTitle>
                 <AlertDescription>
-                  Please pick a date from the calendar to see available time slots.
+                  Por favor, escolha uma data no calendário para ver os horários disponíveis.
                 </AlertDescription>
               </Alert>
             )}
@@ -125,4 +127,3 @@ export function AvailabilityCalendar({ court }: AvailabilityCalendarProps) {
     </Card>
   );
 }
-

@@ -3,6 +3,7 @@
 
 import { useState } from 'react';
 import { format } from 'date-fns';
+import { ptBR } from 'date-fns/locale';
 import { Button } from '@/components/ui/button';
 import {
   Dialog,
@@ -41,8 +42,8 @@ export function BookingConfirmationDialog({
     if (!currentUser) {
       toast({
         variant: "destructive",
-        title: "Authentication Error",
-        description: "You must be logged in to book a court.",
+        title: "Erro de Autenticação",
+        description: "Você precisa estar logado para reservar uma quadra.",
       });
       return;
     }
@@ -73,17 +74,17 @@ export function BookingConfirmationDialog({
       const aiResponse = await personalizedBookingConfirmation(aiInput);
 
       toast({
-        title: "Booking Confirmed!",
+        title: "Reserva Confirmada!",
         description: aiResponse.confirmationMessage,
         duration: 7000, 
       });
       onOpenChange(false);
     } catch (error) {
-      console.error("Booking failed:", error);
+      console.error("Falha na reserva:", error);
       toast({
         variant: "destructive",
-        title: "Booking Failed",
-        description: "An error occurred while trying to book the court. Please try again.",
+        title: "Falha na Reserva",
+        description: "Ocorreu um erro ao tentar reservar a quadra. Por favor, tente novamente.",
       });
     } finally {
       setIsBooking(false);
@@ -94,38 +95,38 @@ export function BookingConfirmationDialog({
     <Dialog open={isOpen} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-[425px]">
         <DialogHeader>
-          <DialogTitle>Confirm Your Booking</DialogTitle>
+          <DialogTitle>Confirmar Sua Reserva</DialogTitle>
           <DialogDescription>
-            You are about to book the <span className="font-semibold text-primary">{court.name}</span>.
+            Você está prestes a reservar a <span className="font-semibold text-primary">{court.name}</span>.
           </DialogDescription>
         </DialogHeader>
         <div className="space-y-4 py-4">
           <div className="flex items-center">
             <CalendarDays className="mr-2 h-5 w-5 text-muted-foreground" />
             <span className="text-sm">
-              <span className="font-medium">Date:</span> {format(selectedDate, 'EEEE, MMMM do, yyyy')}
+              <span className="font-medium">Data:</span> {format(selectedDate, "EEEE, dd 'de' MMMM 'de' yyyy", { locale: ptBR })}
             </span>
           </div>
           <div className="flex items-center">
             <Clock className="mr-2 h-5 w-5 text-muted-foreground" />
             <span className="text-sm">
-              <span className="font-medium">Time:</span> {selectedTime}
+              <span className="font-medium">Horário:</span> {selectedTime}
             </span>
           </div>
           {currentUser && (
             <div className="flex items-center">
                <UserCircle className="mr-2 h-5 w-5 text-muted-foreground" />
-               <span className="text-sm"><span className="font-medium">Booked by:</span> {currentUser.name}</span>
+               <span className="text-sm"><span className="font-medium">Reservado por:</span> {currentUser.name}</span>
             </div>
           )}
         </div>
         <DialogFooter>
           <Button variant="outline" onClick={() => onOpenChange(false)} disabled={isBooking}>
-            Cancel
+            Cancelar
           </Button>
           <Button onClick={handleBooking} disabled={isBooking} className="bg-accent hover:bg-accent/90">
             {isBooking && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-            Confirm Booking
+            Confirmar Reserva
           </Button>
         </DialogFooter>
       </DialogContent>
