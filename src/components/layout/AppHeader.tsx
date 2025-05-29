@@ -37,7 +37,6 @@ export function AppHeader() {
     if (playIndex !== -1) {
       navLinks.splice(playIndex + 1, 0, { href: '/my-bookings', label: 'Minhas Reservas', icon: ListChecks });
     } else {
-      // Fallback if '/play' is not found for some reason, though it should be.
       navLinks.push({ href: '/my-bookings', label: 'Minhas Reservas', icon: ListChecks });
     }
   }
@@ -59,19 +58,24 @@ export function AppHeader() {
         <div className="container flex h-16 items-center justify-between">
           <div className="flex items-center gap-2">
             <Skeleton className="h-9 w-9 rounded-sm" />
-            {/* Skeleton for the full name, visible sm and up */}
-            <Skeleton className="h-6 w-40 rounded bg-muted hidden sm:inline-block" />
-            {/* Skeleton for "AK", visible xs only */}
-            <Skeleton className="h-6 w-10 rounded bg-muted sm:hidden" />
+            {/* Skeleton for the full name, visible sm and up, wrapped for responsive visibility */}
+            <div className="hidden sm:inline-block">
+              <Skeleton className="h-6 w-40 rounded bg-muted" />
+            </div>
+            {/* Skeleton for "AK", visible xs only, wrapped for responsive visibility */}
+            <div className="sm:hidden">
+              <Skeleton className="h-6 w-10 rounded bg-muted" />
+            </div>
           </div>
           {/* Basic skeleton for nav icons */}
           <div className="hidden sm:flex items-center gap-2">
-            {[...Array(navLinksBase.length)].map((_, i) => (
+            {navLinks.map((_, i) => ( // Use navLinks to determine the number of skeletons based on current user state
               <Skeleton key={i} className="h-8 w-8 rounded-md bg-muted" />
             ))}
           </div>
           <div className="flex items-center gap-2">
-            <Skeleton className="h-9 w-20 sm:w-24 rounded-md bg-muted" /> {/* Auth placeholder */}
+            {/* Placeholder for auth buttons/avatar */}
+            <Skeleton className="h-9 w-10 rounded-full sm:rounded-md bg-muted" /> 
           </div>
         </div>
       </header>
@@ -81,15 +85,12 @@ export function AppHeader() {
   return (
     <header className="sticky top-0 z-50 w-full border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
       <div className="container flex h-16 items-center">
-        <Link href="/" className="mr-2 flex items-center gap-2 shrink-0"> {/* Reduced margin */}
+        <Link href="/" className="mr-2 flex items-center gap-2 shrink-0">
           <AppLogo />
-          {/* Full name: hidden by default (xs), visible from 'sm' upwards */}
           <span className="font-semibold text-base sm:text-lg hidden sm:inline">{APP_NAME}</span>
-          {/* Short name 'AK': visible by default (on xs), hidden from 'sm' upwards */}
           <span className="font-semibold text-base sm:text-lg sm:hidden">AK</span>
         </Link>
         
-        {/* Nav Links: removed overflow-x-auto and whitespace-nowrap */}
         <nav className="flex items-center text-sm font-medium">
           {navLinks.map(link => (
             <Link
@@ -97,7 +98,7 @@ export function AppHeader() {
               href={link.href}
               className={cn(
                 "flex items-center gap-2 p-2 rounded-md transition-colors hover:bg-accent hover:text-accent-foreground shrink-0",
-                "md:px-3", // Apply more horizontal padding when text is visible
+                "md:px-3", 
                 pathname === link.href ? "bg-accent text-accent-foreground" : "text-muted-foreground hover:text-foreground/80"
               )}
             >
@@ -114,7 +115,7 @@ export function AppHeader() {
                 <Button variant="ghost" className="relative h-10 w-10 rounded-full p-0">
                   <Avatar className="h-10 w-10">
                     <AvatarImage 
-                      src={currentUser.name ? `https://placehold.co/100x100.png?text=${getInitials(currentUser.name)}` : `https://placehold.co/100x100.png`}
+                      src={`https://placehold.co/100x100.png?text=${getInitials(currentUser.name)}`}
                       alt={currentUser.name || 'User Avatar'} 
                       data-ai-hint="avatar perfil" 
                     />
