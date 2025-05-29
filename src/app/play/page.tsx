@@ -6,13 +6,21 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { ListChecks, CalendarClock, Users, Swords, CalendarDays } from "lucide-react";
 import Link from "next/link";
-import { playSlotsConfig, numberOfWeeksToDisplayPlaySlots, maxParticipantsPerPlaySlot } from '@/config/appConfig';
+import { playSlotsConfig, numberOfWeeksToDisplayPlaySlots, maxParticipantsPerPlaySlot, type PlaySlotConfig } from '@/config/appConfig';
 import { PlaySlotDisplay } from '@/components/play/PlaySlotDisplay';
 import { useAuth } from '@/hooks/useAuth';
-import { format, nextDay } from 'date-fns';
+import { format, nextDay, parseISO } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { Separator } from "@/components/ui/separator";
 import { Skeleton } from "@/components/ui/skeleton";
+
+// Interface para uma instância individual de Play Slot
+interface PlaySlotInstance {
+  slotConfig: PlaySlotConfig;
+  date: string; // YYYY-MM-DD para lógica
+  displayDate: string; // DD/MM para exibição
+  uniqueKey: string; // Para chaves React
+}
 
 // Função para gerar as próximas N datas para um dia da semana específico
 const getNextOccurrences = (dayOfWeek: number, count: number): Array<{ date: string; displayDate: string }> => {
@@ -23,8 +31,8 @@ const getNextOccurrences = (dayOfWeek: number, count: number): Array<{ date: str
   for (let i = 0; i < count; i++) {
     const nextOccurrenceDate = nextDay(currentDate, dayOfWeek);
     occurrences.push({
-      date: format(nextOccurrenceDate, 'yyyy-MM-dd'), // Para lógica interna
-      displayDate: format(nextOccurrenceDate, 'dd/MM', { locale: ptBR }) // Para exibição
+      date: format(nextOccurrenceDate, 'yyyy-MM-dd'),
+      displayDate: format(nextOccurrenceDate, 'dd/MM', { locale: ptBR })
     });
     currentDate = nextOccurrenceDate; 
   }
@@ -34,18 +42,39 @@ const getNextOccurrences = (dayOfWeek: number, count: number): Array<{ date: str
 function PlayPage() {
   const { playSignUps, isLoading: authLoading } = useAuth();
   const [isClient, setIsClient] = useState(false);
-  const today = new Date();
-  today.setHours(0,0,0,0);
+  const [chronologicallySortedPlaySlots, setChronologicallySortedPlaySlots] = useState<PlaySlotInstance[]>([]);
 
   useEffect(() => {
     setIsClient(true);
   }, []);
 
-  const upcomingPlaySlots = playSlotsConfig.map(slot => ({
-    ...slot,
-    dates: getNextOccurrences(slot.dayOfWeek, numberOfWeeksToDisplayPlaySlots)
-            .filter(d => new Date(d.date + 'T00:00:00') >= today) 
-  }));
+  useEffect(() => {
+    const today = new Date();
+    today.setHours(0,0,0,0);
+
+    const allUpcomingSlots: PlaySlotInstance[] = [];
+
+    playSlotsConfig.forEach(slot => {
+      const occurrences = getNextOccurrences(slot.dayOfWeek, numberOfWeeksToDisplayPlaySlots);
+      occurrences.forEach(occ => {
+        if (new Date(occ.date + 'T00:00:00') >= today) {
+          allUpcomingSlots.push({
+            slotConfig: slot,
+            date: occ.date,
+            displayDate: occ.displayDate,
+            uniqueKey: `${slot.key}-${occ.date}`
+          });
+        }
+      });
+    });
+
+    // Ordenar cronologicamente
+    allUpcomingSlots.sort((a, b) => parseISO(a.date).getTime() - parseISO(b.date).getTime());
+    
+    setChronologicallySortedPlaySlots(allUpcomingSlots);
+
+  }, [numberOfWeeksToDisplayPlaySlots]);
+
 
   return (
     <div className="w-full max-w-5xl mx-auto py-8 px-4 sm:px-6 lg:px-8 space-y-12">
@@ -72,25 +101,21 @@ function PlayPage() {
           </div>
         )}
 
-        {!authLoading && upcomingPlaySlots.map((slotType, typeIndex) => (
-          slotType.dates.length > 0 && (
-            <div key={slotType.key} className="space-y-6">
-              <div className="grid gap-6 md:grid-cols-2 xl:grid-cols-3">
-                {slotType.dates.map(dateInfo => (
-                  <PlaySlotDisplay
-                    key={`${slotType.key}-${dateInfo.date}`}
-                    slotConfig={slotType}
-                    date={dateInfo.date} // YYYY-MM-DD for logic
-                    displayDate={dateInfo.displayDate} // dd/MM for title
-                    allSignUps={playSignUps}
-                  />
-                ))}
-              </div>
-              {typeIndex < upcomingPlaySlots.filter(s => s.dates.length > 0).length - 1 && <Separator className="my-10" />}
-            </div>
-          )
-        ))}
-         {!authLoading && upcomingPlaySlots.every(slot => slot.dates.length === 0) && (
+        {!authLoading && chronologicallySortedPlaySlots.length > 0 && (
+          <div className="grid gap-6 md:grid-cols-2 xl:grid-cols-3">
+            {chronologicallySortedPlaySlots.map(slotInstance => (
+              <PlaySlotDisplay
+                key={slotInstance.uniqueKey}
+                slotConfig={slotInstance.slotConfig}
+                date={slotInstance.date}
+                displayDate={slotInstance.displayDate}
+                allSignUps={playSignUps}
+              />
+            ))}
+          </div>
+        )}
+        
+         {!authLoading && chronologicallySortedPlaySlots.length === 0 && (
             <Card className="text-center py-10">
                 <CardContent>
                     <CalendarClock className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
@@ -153,7 +178,7 @@ function PlayPage() {
             </Link>
           </Button>
         ) : (
-          <div className="h-11 w-64 rounded-md bg-muted opacity-50 mx-auto" />
+           <div className="h-11 w-64 rounded-md bg-muted opacity-50 mx-auto" />
         )}
       </section>
     </div>
@@ -161,3 +186,5 @@ function PlayPage() {
 }
 
 export default PlayPage;
+
+    
