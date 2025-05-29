@@ -17,7 +17,6 @@ import {
   collection, 
   query, 
   where, 
-  // getDocs, // Não usado diretamente aqui, mas onSnapshot usa internamente
   onSnapshot, 
   doc, 
   setDoc, 
@@ -73,7 +72,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
       unsubscribeAuth();
       unsubscribeBookings();
     };
-  }, []); // toast removido das dependências
+  }, []);
 
 
   const clearAuthError = () => setAuthError(null);
@@ -156,13 +155,13 @@ export function AuthProvider({ children }: AuthProviderProps) {
       return Promise.reject(new Error(errMsg));
     }
 
+    // Explicitly cast and validate essential string inputs for the query
     const courtIdStr = String(newBookingData.courtId);
     const dateStr = String(newBookingData.date);
     const timeStr = String(newBookingData.time);
     const courtNameStr = String(newBookingData.courtName);
     const courtTypeStr = newBookingData.courtType;
 
-    // Validações dos dados de entrada
     if (!courtIdStr || courtIdStr.trim() === '' || courtIdStr === 'undefined') {
         const msg = "Dados de Reserva Inválidos: courtId está ausente ou inválido.";
         console.error(msg, newBookingData);
@@ -193,14 +192,29 @@ export function AuthProvider({ children }: AuthProviderProps) {
         toast({ variant: "destructive", title: "Dados Inválidos", description: msg });
         return Promise.reject(new Error(msg));
     }
-
+    
     let generatedBookingId = '';
-    console.log(`Iniciando transação para a coleção '${RESERVAS_COLLECTION_NAME}'. Verifique o índice (courtId ASC, date ASC, time ASC) com ESCOPO DE COLEÇÃO.`);
-
+    
     try {
       await runTransaction(db, async (transaction) => {
         const reservasRef = collection(db, RESERVAS_COLLECTION_NAME);
         
+        // --- DIAGNOSTIC STEP: Try to read user document ---
+        try {
+            console.log(`TRANSACTION DIAGNOSTIC: Attempting to read user document for user ID: ${currentUser.id}`);
+            const userDocRef = doc(db, USERS_COLLECTION_NAME, currentUser.id);
+            const userDocSnap = await transaction.get(userDocRef);
+            if (!userDocSnap.exists()) {
+                console.error(`TRANSACTION DIAGNOSTIC CRITICAL: User document NOT FOUND for user ID: ${currentUser.id}`);
+                throw new Error("Falha ao verificar dados do usuário na transação (documento do usuário não encontrado).");
+            }
+            console.log("TRANSACTION DIAGNOSTIC: Successfully read user document. User data:", userDocSnap.data());
+        } catch (userReadError: any) {
+            console.error("TRANSACTION DIAGNOSTIC ERROR reading user document:", userReadError);
+            throw new Error(`Falha na etapa de diagnóstico da transação (leitura do usuário): ${userReadError.message}`);
+        }
+        // --- END DIAGNOSTIC STEP ---
+
         const conflictQuery = query(
           reservasRef,
           where("courtId", "==", courtIdStr),
@@ -209,13 +223,14 @@ export function AuthProvider({ children }: AuthProviderProps) {
         );
         
         console.log(
-            `Dentro da transação, prestes a executar transaction.get() na coleção '${RESERVAS_COLLECTION_NAME}' com os seguintes critérios: courtId='${courtIdStr}', date='${dateStr}', time='${timeStr}'. GARANTA QUE O ÍNDICE COMPOSTO (courtId ASC, date ASC, time ASC) com ESCOPO DE COLEÇÃO para '${RESERVAS_COLLECTION_NAME}' EXISTA E ESTEJA ATIVO NO FIREBASE CONSOLE.`,
+            `Tentando obter snapshot de conflito com a query na coleção '${RESERVAS_COLLECTION_NAME}'. Critérios: courtId='${courtIdStr}', date='${dateStr}', time='${timeStr}'. GARANTA QUE O ÍNDICE COMPOSTO (courtId ASC, date ASC, time ASC) com ESCOPO DE COLEÇÃO para '${RESERVAS_COLLECTION_NAME}' EXISTA E ESTEJA ATIVO NO FIREBASE CONSOLE.`,
             "Objeto da Query:", conflictQuery 
         );
         
         const conflictSnapshot = await transaction.get(conflictQuery);
         
         if (!conflictSnapshot.empty) {
+          console.warn("Conflito de reserva detectado:", conflictSnapshot.docs.map(d => d.data()));
           throw new Error("Este horário já foi reservado. Por favor, escolha outro.");
         }
 
@@ -232,22 +247,21 @@ export function AuthProvider({ children }: AuthProviderProps) {
           date: dateStr,
           time: timeStr,
         };
+        console.log("Nenhum conflito encontrado. Tentando salvar nova reserva:", bookingToSave);
         transaction.set(newBookingDocRef, bookingToSave);
       });
+      console.log("Transação de reserva concluída com sucesso. ID da Reserva:", generatedBookingId);
       return generatedBookingId; 
     } catch (error: any) {
       console.error(
-        `Erro ao adicionar reserva (transação ou pré-transação) na coleção '${RESERVAS_COLLECTION_NAME}'. Nome do Erro:`, error.name,
-        "Código do Erro:", error.code, 
-        "Mensagem do Erro:", error.message,
-        "Objeto de Erro Completo:", error
+        `Erro ao adicionar reserva (transação ou pré-transação) na coleção '${RESERVAS_COLLECTION_NAME}'. Nome do Erro: "${error.name}" "Código do Erro:" ${error.code} "Mensagem do Erro:" "${error.message}" "Objeto de Erro Completo:"`, error
       );
       
       if (error.name === 'TypeError' && error.message.includes("Cannot read properties of undefined (reading 'path')")) {
         toast({
             variant: "destructive",
             title: "FALHA CRÍTICA NA RESERVA (Erro Interno Firestore)",
-            description: `Ocorreu um erro interno GRAVE no Firestore (TypeError: ...reading 'path') ao tentar verificar a disponibilidade na '${RESERVAS_COLLECTION_NAME}'. Se o índice (courtId ASC, date ASC, time ASC) com ESCOPO DE COLEÇÃO para '${RESERVAS_COLLECTION_NAME}' está 100% CORRETO e ATIVO, o problema é mais profundo. Verifique os dados de entrada logados no console. Detalhe: ${error.message}`,
+            description: `Ocorreu um erro interno GRAVE no Firestore (TypeError: ...reading 'path') ao tentar verificar a disponibilidade na coleção '${RESERVAS_COLLECTION_NAME}'. SE O ÍNDICE (courtId ASC, date ASC, time ASC, Escopo: Coleção) está 100% CORRETO e ATIVO, o problema é mais profundo. Verifique os dados da query logados no console. Mensagem: ${error.message}`,
             duration: 30000
         });
       } else if (error.message && (error.message.toLowerCase().includes("index") || error.message.includes("FIRESTORE_INDEX_NEARBY") || (error.code === 'failed-precondition' && error.message.toLowerCase().includes("query requires an index")) )) {
@@ -259,8 +273,9 @@ export function AuthProvider({ children }: AuthProviderProps) {
           });
       } else if (error.message === "Este horário já foi reservado. Por favor, escolha outro.") {
          toast({ variant: "destructive", title: "Horário Indisponível", description: error.message });
-      }
-       else {
+      } else if (error.message && error.message.includes("Falha ao verificar dados do usuário na transação")) {
+         toast({ variant: "destructive", title: "Erro na Transação", description: error.message, duration: 10000 });
+      } else {
         toast({ 
             variant: "destructive", 
             title: "Falha na Reserva", 
