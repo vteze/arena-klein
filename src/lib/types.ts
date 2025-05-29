@@ -27,7 +27,8 @@ export interface Booking {
 
 export interface TimeSlot {
   time: string; // HH:mm
-  isBooked: boolean;
+  isBooked: boolean; // True if a regular booking exists for this court/time
+  isPlayTime?: boolean; // True if this slot falls into a general "Play" session time
 }
 
 // Tipos para o sistema "Play"
