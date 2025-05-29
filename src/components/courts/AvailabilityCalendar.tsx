@@ -71,7 +71,6 @@ export function AvailabilityCalendar({ court, className }: AvailabilityCalendarP
               onSelect={setSelectedDate}
               className="rounded-md border shadow-sm"
               disabled={(date) => date < today}
-              initialFocus
               locale={ptBR}
             />
           </div>
@@ -134,4 +133,3 @@ export function AvailabilityCalendar({ court, className }: AvailabilityCalendarP
     </Card>
   );
 }
-
