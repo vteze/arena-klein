@@ -15,7 +15,7 @@ import {z} from 'genkit';
 
 const PersonalizedBookingConfirmationInputSchema = z.object({
   userName: z.string().describe('O nome do usuário que fez a reserva.'),
-  courtType: z.string().describe('O tipo de quadra reservada (ex: coberta, descoberta).'),
+  courtType: z.string().describe('O tipo de quadra reservada (ex: Quadra Coberta).'),
   date: z.string().describe('A data da reserva (AAAA-MM-DD).'),
   time: z.string().describe('A hora da reserva (HH:mm).'),
   bookingId: z.string().describe('O identificador único da reserva.'),
@@ -37,12 +37,27 @@ const bookingConfirmationPrompt = ai.definePrompt({
   name: 'bookingConfirmationPrompt',
   input: {schema: PersonalizedBookingConfirmationInputSchema},
   output: {schema: PersonalizedBookingConfirmationOutputSchema},
-  prompt: `Prezado(a) {{userName}},
+  prompt: `
+Você é um assistente da Arena Klein Beach Tennis.
+Sua tarefa é gerar uma mensagem de confirmação de reserva amigável.
+Use os seguintes detalhes para a mensagem:
+- Nome do Usuário: {{userName}}
+- ID da Reserva: {{bookingId}}
+- Tipo de Quadra: {{courtType}}
+- Data: {{date}}
+- Hora: {{time}}
 
-Confirmamos sua reserva com o ID {{bookingId}} para a quadra {{courtType}} no dia {{date}} às {{time}}. Estamos ansiosos para recebê-lo(a)!
+A mensagem deve confirmar claramente a reserva e incluir uma frase amigável, como "Estamos ansiosos para recebê-lo(a)!".
+Assine a mensagem como "Atenciosamente, Arena Klein Beach Tennis".
 
-Atenciosamente,
-Arena Klein Beach Tennis`,
+Importante: Sua resposta DEVE ser um objeto JSON que corresponda ao schema de saída, que espera uma única chave "confirmationMessage" contendo a string da mensagem de confirmação gerada.
+
+Exemplo de formato JSON de saída esperado:
+{
+  "confirmationMessage": "Prezado(a) {{userName}}, Confirmamos sua reserva com o ID {{bookingId}} para a quadra {{courtType}} no dia {{date}} às {{time}}. Estamos ansiosos para recebê-lo(a)! Atenciosamente, Arena Klein Beach Tennis"
+}
+Adapte a mensagem para soar natural e amigável com base nos detalhes fornecidos.
+`,
 });
 
 const personalizedBookingConfirmationFlow = ai.defineFlow(
@@ -52,7 +67,12 @@ const personalizedBookingConfirmationFlow = ai.defineFlow(
     outputSchema: PersonalizedBookingConfirmationOutputSchema,
   },
   async input => {
-    const {output} = await bookingConfirmationPrompt(input);
-    return output!;
+    const response = await bookingConfirmationPrompt(input);
+    if (!response.output) {
+      console.error('Genkit prompt (bookingConfirmationPrompt) did not return an output.', 'Input:', input, 'Full response:', response);
+      throw new Error('Falha ao gerar a mensagem de confirmação pela IA. A resposta da IA estava vazia.');
+    }
+    return response.output;
   }
 );
+
