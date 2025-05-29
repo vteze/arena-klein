@@ -66,14 +66,15 @@ export function BookingCancellationDialog({
           </DialogTitle>
           <DialogDescription className="pt-2">
             Você tem certeza que deseja cancelar a seguinte reserva? Esta ação não pode ser desfeita.
-            <div className="mt-4 space-y-1 text-sm text-foreground bg-muted/50 p-3 rounded-md">
-              <p><span className="font-medium">Quadra:</span> {booking.courtName} ({booking.courtType === 'covered' ? 'Coberta' : 'Descoberta'})</p>
-              <p><span className="font-medium">Data:</span> {format(parseISO(booking.date), "EEEE, dd 'de' MMMM 'de' yyyy", { locale: ptBR })}</p>
-              <p><span className="font-medium">Hora:</span> {booking.time}</p>
-              <p className="text-xs"><span className="font-medium">ID:</span> {booking.id}</p>
-            </div>
           </DialogDescription>
         </DialogHeader>
+        {/* Detalhes da reserva movidos para fora do DialogDescription */}
+        <div className="mt-4 space-y-1 text-sm text-foreground bg-muted/50 p-3 rounded-md">
+          <p><span className="font-medium">Quadra:</span> {booking.courtName} ({booking.courtType === 'covered' ? 'Coberta' : 'Descoberta'})</p>
+          <p><span className="font-medium">Data:</span> {format(parseISO(booking.date), "EEEE, dd 'de' MMMM 'de' yyyy", { locale: ptBR })}</p>
+          <p><span className="font-medium">Hora:</span> {booking.time}</p>
+          <p className="text-xs"><span className="font-medium">ID da Reserva:</span> {booking.id}</p>
+        </div>
         <DialogFooter className="mt-2">
           <Button variant="outline" onClick={() => onOpenChange(false)} disabled={isCancelling}>
             Manter Reserva
