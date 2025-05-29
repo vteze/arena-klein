@@ -3,6 +3,7 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
+import { useState, useEffect } from 'react'; // Added useState, useEffect
 import { LogIn, LogOut, ListChecks, HomeIcon as HomeLucideIcon, UserPlus, HelpCircle, Swords } from 'lucide-react';
 import { APP_NAME } from '@/config/appConfig';
 import { useAuth } from '@/hooks/useAuth';
@@ -18,45 +19,38 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { Skeleton } from '../ui/skeleton'; 
+import { Skeleton } from '../ui/skeleton';
 
 export function AppHeader() {
-  const { currentUser, logout, isLoading } = useAuth();
+  const { currentUser, logout, isLoading: authContextIsLoading } = useAuth(); // Renamed isLoading to authContextIsLoading
   const pathname = usePathname();
+  const [isClientMounted, setIsClientMounted] = useState(false);
+
+  useEffect(() => {
+    setIsClientMounted(true);
+  }, []);
 
   const navLinksBase = [
     { href: '/', label: 'Início', icon: HomeLucideIcon },
     { href: '/play', label: 'Play!', icon: Swords },
     { href: '/faq', label: 'FAQ', icon: HelpCircle },
   ];
-  
-  let navLinks = [...navLinksBase];
-
-  // This logic correctly constructs navLinks based on currentUser for the fully loaded state
-  if (currentUser) {
-    const playIndex = navLinks.findIndex(link => link.href === '/play');
-    if (playIndex !== -1) {
-      navLinks.splice(playIndex + 1, 0, { href: '/my-bookings', label: 'Minhas Reservas', icon: ListChecks });
-    } else {
-      navLinks.push({ href: '/my-bookings', label: 'Minhas Reservas', icon: ListChecks });
-    }
-  }
-
 
   const getInitials = (name: string = "") => {
     const nameParts = name.split(' ');
     if (nameParts.length === 1 && nameParts[0].length > 0) return nameParts[0].substring(0,2).toUpperCase();
     return nameParts
       .map(n => n[0])
-      .filter(Boolean) 
+      .filter(Boolean)
       .join('')
       .toUpperCase();
   };
 
-  if (isLoading) {
+  // Render skeletons if not yet mounted on client or if auth is still loading
+  if (!isClientMounted || authContextIsLoading) {
     return (
       <header className="sticky top-0 z-50 w-full border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
-        <div className="container flex h-16 items-center justify-between">
+        <div className="container flex h-16 items-center justify-between"> {/* Changed to justify-between for better skeleton layout */}
           <div className="flex items-center gap-2">
             <Skeleton className="h-9 w-9 rounded-sm" /> {/* Logo skeleton */}
             {/* Skeleton for the full name, visible sm and up */}
@@ -70,17 +64,28 @@ export function AppHeader() {
           </div>
           {/* Basic skeleton for nav icons - USE navLinksBase FOR CONSISTENT LENGTH */}
           <div className="hidden sm:flex items-center gap-2">
-            {navLinksBase.map((_, i) => ( 
+            {navLinksBase.map((_, i) => (
               <Skeleton key={`skel-nav-${i}`} className="h-8 w-8 rounded-md bg-muted" />
             ))}
           </div>
           <div className="flex items-center gap-2">
             {/* Placeholder for auth buttons/avatar */}
-            <Skeleton className="h-9 w-10 rounded-full sm:rounded-md bg-muted" /> 
+            <Skeleton className="h-9 w-10 rounded-full sm:rounded-md bg-muted" />
           </div>
         </div>
       </header>
     );
+  }
+
+  // Construct actual navLinks now that currentUser is stable
+  let navLinksActual = [...navLinksBase];
+  if (currentUser) {
+    const playIndex = navLinksActual.findIndex(link => link.href === '/play');
+    if (playIndex !== -1) {
+      navLinksActual.splice(playIndex + 1, 0, { href: '/my-bookings', label: 'Minhas Reservas', icon: ListChecks });
+    } else {
+      navLinksActual.push({ href: '/my-bookings', label: 'Minhas Reservas', icon: ListChecks });
+    }
   }
 
   return (
@@ -91,15 +96,15 @@ export function AppHeader() {
           <span className="font-semibold text-base sm:text-lg hidden sm:inline">{APP_NAME}</span>
           <span className="font-semibold text-base sm:text-lg sm:hidden">AK</span>
         </Link>
-        
+
         <nav className="flex items-center text-sm font-medium">
-          {navLinks.map(link => (
+          {navLinksActual.map(link => (
             <Link
               key={link.href}
               href={link.href}
               className={cn(
                 "flex items-center gap-2 p-2 rounded-md transition-colors hover:bg-accent hover:text-accent-foreground shrink-0",
-                "md:px-3", 
+                "md:px-3",
                 pathname === link.href ? "bg-accent text-accent-foreground" : "text-muted-foreground hover:text-foreground/80"
               )}
             >
@@ -115,10 +120,10 @@ export function AppHeader() {
               <DropdownMenuTrigger asChild>
                 <Button variant="ghost" className="relative h-10 w-10 rounded-full p-0">
                   <Avatar className="h-10 w-10">
-                    <AvatarImage 
+                    <AvatarImage
                       src={`https://placehold.co/100x100.png?text=${getInitials(currentUser.name)}`}
-                      alt={currentUser.name || 'User Avatar'} 
-                      data-ai-hint="avatar perfil" 
+                      alt={currentUser.name || 'User Avatar'}
+                      data-ai-hint="avatar perfil"
                     />
                     <AvatarFallback>{getInitials(currentUser.name)}</AvatarFallback>
                   </Avatar>
