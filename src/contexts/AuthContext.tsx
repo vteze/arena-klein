@@ -14,7 +14,7 @@ import {
   type User as FirebaseUser
 } from 'firebase/auth';
 import { auth, db } from '@/lib/firebase';
-import { collection, addDoc, query, where, getDocs, onSnapshot } from 'firebase/firestore';
+import { collection, addDoc, query, where, getDocs, onSnapshot, doc, setDoc, serverTimestamp } from 'firebase/firestore';
 import { useToast } from "@/hooks/use-toast";
 
 export interface AuthContextType {
@@ -107,16 +107,24 @@ export function AuthProvider({ children }: AuthProviderProps) {
       const userCredential = await createUserWithEmailAndPassword(auth, email, pass);
       if (userCredential.user) {
         await updateProfile(userCredential.user, { displayName: name });
-        // Optionally create a user document in Firestore here if needed for more profile data
-        // e.g., await setDoc(doc(db, "users", userCredential.user.uid), { name, email, createdAt: serverTimestamp() });
-         setCurrentUser({ // Manually update context state as onAuthStateChanged might be slightly delayed
+        
+        // Create a user document in Firestore
+        const userDocRef = doc(db, "users", userCredential.user.uid);
+        await setDoc(userDocRef, {
+          uid: userCredential.user.uid, // Storing uid also in the document for easier queries if needed
+          name: name,
+          email: email,
+          createdAt: serverTimestamp(), // Records the time the user was created
+        });
+
+        setCurrentUser({ // Manually update context state as onAuthStateChanged might be slightly delayed
           id: userCredential.user.uid,
           email: userCredential.user.email || "",
           name: name,
         });
       }
       router.push('/');
-    } catch (error: any) {
+    } catch (error: any)      {
       console.error("Sign up error:", error);
       setAuthError(getFirebaseErrorMessage(error.code));
       toast({ variant: "destructive", title: "Falha no Cadastro", description: getFirebaseErrorMessage(error.code) });
@@ -201,3 +209,4 @@ function getFirebaseErrorMessage(errorCode: string): string {
       return "Ocorreu um erro de autenticação. Tente novamente.";
   }
 }
+
