@@ -28,6 +28,12 @@ type RegisterFormValues = z.infer<typeof registerSchema>;
 
 export function RegisterForm() {
   const { signUp, isLoading, authError, clearAuthError } = useAuth();
+  const [isClient, setIsClient] = useState(false);
+
+  useEffect(() => {
+    setIsClient(true);
+  }, []);
+
   const form = useForm<RegisterFormValues>({
     resolver: zodResolver(registerSchema),
     defaultValues: {
@@ -128,10 +134,17 @@ export function RegisterForm() {
         </form>
       </CardContent>
       <CardFooter className="flex-col items-start gap-2 text-sm">
-        <p>Já tem uma conta?</p>
-        <Button variant="link" asChild className="p-0 h-auto">
-          <Link href="/login">Faça login aqui</Link>
-        </Button>
+        {isClient ? (
+          <>
+            <p>Já tem uma conta?</p>
+            <Button variant="link" asChild className="p-0 h-auto">
+              <Link href="/login">Faça login aqui</Link>
+            </Button>
+          </>
+        ) : (
+          // Placeholder to avoid layout shift, or simply render nothing server-side
+          <div className="h-[calc(1.25rem_+_theme(spacing.1)_+_1.25rem)] w-full" /> // Approximate height of the two lines of text + button
+        )}
       </CardFooter>
     </Card>
   );
