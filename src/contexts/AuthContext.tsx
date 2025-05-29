@@ -53,6 +53,8 @@ export function AuthProvider({ children }: AuthProviderProps) {
     });
 
     const bookingsCol = collection(db, "bookings");
+    // Query for all bookings to check availability.
+    // MyBookingsPage will filter for the current user.
     const q = query(bookingsCol); 
     
     const unsubscribeBookings = onSnapshot(q, (querySnapshot) => {
@@ -70,7 +72,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
       unsubscribeAuth();
       unsubscribeBookings();
     };
-  }, []); 
+  }, []); // Removed toast from dependency array
 
 
   const clearAuthError = () => setAuthError(null);
@@ -142,8 +144,6 @@ export function AuthProvider({ children }: AuthProviderProps) {
   };
 
   const addBooking = async (newBookingData: Omit<Booking, 'id' | 'userId' | 'userName'>): Promise<string> => {
-    console.log("addBooking called with newBookingData:", JSON.stringify(newBookingData));
-
     if (!currentUser) {
       const errMsg = "Você precisa estar logado para fazer uma reserva.";
       setAuthError(errMsg);
@@ -152,12 +152,14 @@ export function AuthProvider({ children }: AuthProviderProps) {
       return Promise.reject(new Error(errMsg));
     }
 
+    console.log("addBooking called with newBookingData:", JSON.stringify(newBookingData));
+
     // Pre-cast and validate string inputs
     const courtIdStr = String(newBookingData.courtId);
     const dateStr = String(newBookingData.date);
     const timeStr = String(newBookingData.time);
     const courtNameStr = String(newBookingData.courtName);
-    // courtType is 'covered' | 'uncovered', no need to cast if validated upstream.
+    const courtTypeStr = newBookingData.courtType; 
 
     if (!courtIdStr || courtIdStr.trim() === '' || courtIdStr === 'undefined') {
       const msg = "Dados de Reserva Inválidos: courtId está ausente ou inválido.";
@@ -183,12 +185,13 @@ export function AuthProvider({ children }: AuthProviderProps) {
       toast({ variant: "destructive", title: "Dados Inválidos", description: msg });
       return Promise.reject(new Error(msg));
     }
-    if (!newBookingData.courtType || (newBookingData.courtType !== 'covered' && newBookingData.courtType !== 'uncovered')) {
-        const msg = `Dados de Reserva Inválidos: courtType está inválido ou ausente. Valor: '${newBookingData.courtType}'`;
+    if (!courtTypeStr || (courtTypeStr !== 'covered' && courtTypeStr !== 'uncovered')) {
+        const msg = `Dados de Reserva Inválidos: courtType ('${courtTypeStr}') é inválido ou ausente. Deve ser 'covered' ou 'uncovered'.`;
         console.error(msg, newBookingData);
         toast({ variant: "destructive", title: "Dados Inválidos", description: msg });
         return Promise.reject(new Error(msg));
     }
+
 
     let generatedBookingId = '';
 
@@ -196,12 +199,6 @@ export function AuthProvider({ children }: AuthProviderProps) {
       await runTransaction(db, async (transaction) => {
         const bookingsRef = collection(db, "bookings");
         
-        console.log("Conflict Query Object (using pre-casted strings):", { 
-          courtId: courtIdStr, 
-          date: dateStr, 
-          time: timeStr 
-        });
-
         const conflictQuery = query(
           bookingsRef,
           where("courtId", "==", courtIdStr),
@@ -210,7 +207,8 @@ export function AuthProvider({ children }: AuthProviderProps) {
         );
         
         console.log(
-            "Attempting to get conflict snapshot with query. Ensure Firestore index exists for courtId (ASC), date (ASC), time (ASC) on bookings collection, with COLLECTION scope."
+            "Attempting to get conflict snapshot with query. Ensure Firestore index exists for courtId (ASC), date (ASC), time (ASC) on bookings collection, with COLLECTION scope.",
+            "Query Object:", conflictQuery 
         );
         
         const conflictSnapshot = await transaction.get(conflictQuery);
@@ -228,7 +226,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
           userName: currentUser.name,
           courtId: courtIdStr,
           courtName: courtNameStr, 
-          courtType: newBookingData.courtType, 
+          courtType: courtTypeStr, 
           date: dateStr,
           time: timeStr,
         };
@@ -236,6 +234,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
       });
       return generatedBookingId; 
     } catch (error: any) {
+      // Log detailed error information first
       console.error(
         "Error adding booking (transaction or pre-transaction). Error Name:", error.name,
         "Error Code:", error.code, 
@@ -268,7 +267,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
             duration: 10000 
         });
       }
-      throw error; 
+      throw error;
     }
   };
 
@@ -324,4 +323,3 @@ function getFirebaseErrorMessage(errorCode: string): string {
   }
 }
     
-
