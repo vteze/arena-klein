@@ -43,7 +43,7 @@ const faqData: FaqItem[] = [
   {
     question: "A arena possui estacionamento disponível?",
     answer:
-      "A arena não possui estacionamento próprio. No entanto, é geralmente possível estacionar na Rua Comendador Rodolfo Gomes, em Porto Alegre, bem em frente à arena. Recomendamos sempre observar a sinalização local de trânsito e restrições de estacionamento.",
+      "A arena não possui estacionamento próprio. No entanto, é geralmente possível estacionar na Rua Comendador Rodolfo Gomes, bem em frente à arena. Recomendamos sempre observar a sinalização local de trânsito e restrições de estacionamento.",
   },
   {
     question: "Qual a diferença principal entre a quadra coberta e a não-coberta?",
