@@ -1,7 +1,7 @@
 
 "use client";
 
-import type { User, Booking, PlaySignUp, AuthContextType, AuthProviderProps } from '@/lib/types'; // Adicionado PlaySignUp
+import type { User, Booking, PlaySignUp, AuthContextType, AuthProviderProps } from '@/lib/types';
 import { useRouter, usePathname } from 'next/navigation';
 import { createContext, useState, useEffect } from 'react';
 import { 
@@ -10,6 +10,7 @@ import {
   signInWithEmailAndPassword, 
   createUserWithEmailAndPassword,
   updateProfile,
+  sendPasswordResetEmail, // Importar sendPasswordResetEmail
   type User as FirebaseUser
 } from 'firebase/auth';
 import { auth, db } from '@/lib/firebase';
@@ -25,7 +26,6 @@ import {
   addDoc, 
   getDocs, 
   Timestamp,
-  // runTransaction, // Removido após refatoração do addBooking
 } from 'firebase/firestore';
 import { useToast } from "@/hooks/use-toast";
 import { maxParticipantsPerPlaySlot } from '@/config/appConfig'; 
@@ -33,7 +33,7 @@ import { maxParticipantsPerPlaySlot } from '@/config/appConfig';
 export const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 const USERS_COLLECTION_NAME = "users";
-const RESERVAS_COLLECTION_NAME = "reservas"; // Coleção em português
+const RESERVAS_COLLECTION_NAME = "reservas";
 const PLAY_SIGNUPS_COLLECTION_NAME = "playSignUps"; 
 
 export function AuthProvider({ children }: AuthProviderProps) {
@@ -44,7 +44,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
   const [authError, setAuthError] = useState<string | null>(null);
   const router = useRouter();
   const pathname = usePathname();
-  const { toast } = useToast(); // Movido para fora do useEffect
+  const { toast } = useToast();
 
   useEffect(() => {
     const unsubscribeAuth = onAuthStateChanged(auth, (firebaseUser: FirebaseUser | null) => {
@@ -101,8 +101,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
       unsubscribeBookings();
       unsubscribePlaySignUps(); 
     };
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []); // Removido toast das dependências pois é estável
+  }, []);
 
 
   const clearAuthError = () => setAuthError(null);
@@ -173,6 +172,31 @@ export function AuthProvider({ children }: AuthProviderProps) {
     }
   };
 
+  const sendPasswordReset = async (email: string) => {
+    setIsLoading(true);
+    setAuthError(null);
+    try {
+      await sendPasswordResetEmail(auth, email);
+      toast({
+        title: "Link de Redefinição Enviado",
+        description: `Se uma conta existir para ${email}, um email foi enviado com instruções para redefinir sua senha.`,
+        duration: 9000,
+      });
+    } catch (error: any) {
+      console.error("Password reset error:", error);
+      const message = getFirebaseErrorMessage(error.code);
+      setAuthError(message); // Armazena para o formulário exibir, se necessário
+      toast({
+        variant: "destructive",
+        title: "Falha ao Enviar Link",
+        description: message,
+        duration: 7000,
+      });
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
   const addBooking = async (newBookingData: Omit<Booking, 'id' | 'userId' | 'userName'>): Promise<string> => {
     console.log(`addBooking (para coleção '${RESERVAS_COLLECTION_NAME}') chamada com newBookingData:`, JSON.stringify(newBookingData));
 
@@ -190,7 +214,6 @@ export function AuthProvider({ children }: AuthProviderProps) {
     const courtNameStr = String(newBookingData.courtName);
     const courtTypeStr = newBookingData.courtType;
 
-    // Validações robustas
     if (!courtIdStr || courtIdStr.trim() === '' || courtIdStr === 'undefined') {
       throw new Error("ID da quadra inválido.");
     }
@@ -204,11 +227,10 @@ export function AuthProvider({ children }: AuthProviderProps) {
       throw new Error("Nome da quadra inválido.");
     }
     if (!courtTypeStr || (courtTypeStr !== 'covered' && courtTypeStr !== 'uncovered')) {
-      throw new Error("Tipo da quadra inválido. Use 'covered' ou 'uncovered'.");
+        throw new Error("Tipo da quadra inválido. Use 'covered' ou 'uncovered'.");
     }
-
-    const newBookingDocRef = doc(collection(db, RESERVAS_COLLECTION_NAME)); // Gera ID no cliente
-    const generatedBookingId = newBookingDocRef.id;
+    
+    const generatedBookingId = doc(collection(db, RESERVAS_COLLECTION_NAME)).id;
 
     try {
       const reservasColRef = collection(db, RESERVAS_COLLECTION_NAME);
@@ -242,7 +264,8 @@ export function AuthProvider({ children }: AuthProviderProps) {
       };
       console.log(`Nenhum conflito encontrado (NÃO TRANSACIONAL). Tentando salvar nova reserva na coleção '${RESERVAS_COLLECTION_NAME}':`, bookingToSave);
       
-      await setDoc(newBookingDocRef, bookingToSave); // Salva com o ID gerado
+      const newBookingDocRef = doc(db, RESERVAS_COLLECTION_NAME, generatedBookingId);
+      await setDoc(newBookingDocRef, bookingToSave);
       console.log(`Reserva (NÃO TRANSACIONAL) salva com sucesso na coleção '${RESERVAS_COLLECTION_NAME}'. ID da Reserva:`, generatedBookingId);
       return generatedBookingId;
 
@@ -365,6 +388,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
       login, 
       signUp, 
       logout, 
+      sendPasswordReset, // Adicionar nova função
       addBooking, 
       cancelBooking, 
       signUpForPlaySlot, 
@@ -390,12 +414,15 @@ function getFirebaseErrorMessage(errorCode: string): string {
       return "Senha incorreta.";
     case "auth/email-already-in-use":
       return "Este email já está em uso. Tente fazer login.";
-    case "auth/weak-password": // Geralmente para registro
+    case "auth/weak-password":
       return "A senha é muito fraca. Use pelo menos 6 caracteres.";
     case "auth/operation-not-allowed":
       return "Operação não permitida. Contate o suporte.";
     case "auth/invalid-credential": 
        return "Credenciais inválidas. Verifique seu email e senha.";
+    // Erros específicos para sendPasswordResetEmail
+    case "auth/missing-email": // Embora o Zod já valide isso
+        return "Por favor, insira seu endereço de email.";
     default:
       return "Ocorreu um erro de autenticação. Tente novamente.";
   }

@@ -83,7 +83,14 @@ export function LoginForm() {
             )}
           </div>
           <div className="space-y-2">
-            <Label htmlFor="password">Senha</Label>
+            <div className="flex items-center justify-between">
+              <Label htmlFor="password">Senha</Label>
+              {isClient && ( // Renderiza o link apenas no cliente
+                <Button variant="link" asChild className="p-0 h-auto text-xs">
+                  <Link href="/forgot-password">Esqueceu a senha?</Link>
+                </Button>
+              )}
+            </div>
             <Input
               id="password"
               type="password"
@@ -113,8 +120,6 @@ export function LoginForm() {
             </Button>
           </>
         ) : (
-          // Placeholder to match server render and avoid layout shift
-          // Approximate height of two lines of text + button link
           <div className="h-[calc(1.25rem_+_theme(spacing.1)_+_1.25rem)] w-full" />
         )}
       </CardFooter>

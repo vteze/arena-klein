@@ -34,7 +34,7 @@ export interface TimeSlot {
 // Tipos para o sistema "Play"
 export interface PlaySlotConfig {
   key: string; // ex: "sexta-16-20"
-  label: string; // ex: "Sexta-Feira"
+  label: string; // ex: "Play SEXTOU!!"
   dayOfWeek: number; // 0 (Dom) a 6 (Sab)
   timeRange: string; // ex: "16:00 - 20:00"
 }
@@ -56,14 +56,15 @@ import type { ReactNode } from 'react';
 export interface AuthContextType {
   currentUser: User | null;
   bookings: Booking[];
-  playSignUps: PlaySignUp[]; // Adicionado
+  playSignUps: PlaySignUp[];
   login: (email: string, pass: string) => Promise<void>;
   signUp: (name: string, email: string, pass: string) => Promise<void>;
   logout: () => Promise<void>;
+  sendPasswordReset: (email: string) => Promise<void>; // Nova função
   addBooking: (newBooking: Omit<Booking, 'id' | 'userId' | 'userName'>) => Promise<string>;
   cancelBooking: (bookingId: string) => Promise<void>;
-  signUpForPlaySlot: (slotKey: string, date: string, userDetails: { userId: string, userName: string, userEmail: string }) => Promise<void>; // Adicionado
-  cancelPlaySlotSignUp: (signUpId: string) => Promise<void>; // Adicionado
+  signUpForPlaySlot: (slotKey: string, date: string, userDetails: { userId: string, userName: string, userEmail: string }) => Promise<void>;
+  cancelPlaySlotSignUp: (signUpId: string) => Promise<void>;
   isLoading: boolean;
   authError: string | null;
   clearAuthError: () => void;
@@ -72,4 +73,3 @@ export interface AuthContextType {
 export interface AuthProviderProps {
   children: ReactNode;
 }
-
