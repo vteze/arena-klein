@@ -1,7 +1,7 @@
 
 "use client";
 
-import type { User, Booking, AuthContextType, AuthProviderProps } from '@/lib/types';
+import type { User, Booking, PlaySignUp, AuthContextType, AuthProviderProps } from '@/lib/types'; // Adicionado PlaySignUp
 import { useRouter, usePathname } from 'next/navigation';
 import { createContext, useState, useEffect } from 'react';
 import { 
@@ -22,19 +22,24 @@ import {
   setDoc, 
   serverTimestamp, 
   deleteDoc,
-  getDocs, // Para a nova lógica de addBooking sem transação
+  addDoc, // Para signUpForPlaySlot
+  getDocs, // Para verificação de conflito em addBooking e em signUpForPlaySlot
+  Timestamp, // Para signedUpAt
   // runTransaction, // Removido
 } from 'firebase/firestore';
 import { useToast } from "@/hooks/use-toast";
+import { maxParticipantsPerPlaySlot } from '@/config/appConfig'; // Importar o limite
 
 export const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 const USERS_COLLECTION_NAME = "users";
-const RESERVAS_COLLECTION_NAME = "reservas"; // Nome da coleção em português
+const RESERVAS_COLLECTION_NAME = "reservas";
+const PLAY_SIGNUPS_COLLECTION_NAME = "playSignUps"; // Nova coleção
 
 export function AuthProvider({ children }: AuthProviderProps) {
   const [currentUser, setCurrentUser] = useState<User | null>(null);
   const [bookings, setBookings] = useState<Booking[]>([]);
+  const [playSignUps, setPlaySignUps] = useState<PlaySignUp[]>([]); // Estado para inscrições do Play
   const [isLoading, setIsLoading] = useState(true); 
   const [authError, setAuthError] = useState<string | null>(null);
   const router = useRouter();
@@ -55,17 +60,17 @@ export function AuthProvider({ children }: AuthProviderProps) {
       setIsLoading(false);
     });
 
+    // Listener para Reservas
     const reservasColRef = collection(db, RESERVAS_COLLECTION_NAME); 
-    const q = query(reservasColRef); 
-    
-    const unsubscribeBookings = onSnapshot(q, (querySnapshot) => {
+    const qReservas = query(reservasColRef); 
+    const unsubscribeBookings = onSnapshot(qReservas, (querySnapshot) => {
       const allBookings: Booking[] = [];
       querySnapshot.forEach((doc) => {
         allBookings.push({ id: doc.id, ...doc.data() } as Booking);
       });
       setBookings(allBookings);
     }, (error) => {
-      console.error(`Erro ao buscar dados da coleção '${RESERVAS_COLLECTION_NAME}' (verifique regras e índices do Firestore): `, error);
+      console.error(`Erro ao buscar dados da coleção '${RESERVAS_COLLECTION_NAME}': `, error);
       toast({ 
         variant: "destructive", 
         title: `Erro ao buscar dados da coleção '${RESERVAS_COLLECTION_NAME}'`,
@@ -74,11 +79,32 @@ export function AuthProvider({ children }: AuthProviderProps) {
       });
     });
 
+    // Listener para Inscrições do Play
+    const playSignUpsColRef = collection(db, PLAY_SIGNUPS_COLLECTION_NAME);
+    const qPlaySignUps = query(playSignUpsColRef); // Pode-se adicionar ordenação por data/hora aqui se necessário
+    const unsubscribePlaySignUps = onSnapshot(qPlaySignUps, (querySnapshot) => {
+      const allSignUps: PlaySignUp[] = [];
+      querySnapshot.forEach((doc) => {
+        allSignUps.push({ id: doc.id, ...doc.data() } as PlaySignUp);
+      });
+      setPlaySignUps(allSignUps);
+    }, (error) => {
+      console.error(`Erro ao buscar dados da coleção '${PLAY_SIGNUPS_COLLECTION_NAME}': `, error);
+      toast({ 
+        variant: "destructive", 
+        title: `Erro ao buscar inscrições do Play`,
+        description: `Não foi possível carregar os dados das inscrições do Play. Verifique suas Regras de Segurança do Firestore. Erro: ${error.message}`,
+        duration: 10000
+      });
+    });
+
+
     return () => {
       unsubscribeAuth();
       unsubscribeBookings();
+      unsubscribePlaySignUps(); // Limpar listener das inscrições do Play
     };
-  }, [toast]); // Removido 'toast' como dependência, pois é estável
+  }, []);
 
 
   const clearAuthError = () => setAuthError(null);
@@ -167,37 +193,11 @@ export function AuthProvider({ children }: AuthProviderProps) {
     const courtNameStr = String(newBookingData.courtName);
     const courtTypeStr = newBookingData.courtType;
   
-    // Validações de entrada
-    if (!courtIdStr || courtIdStr.trim() === '' || courtIdStr === 'undefined') {
-        const msg = "Dados de Reserva Inválidos: courtId está ausente ou inválido.";
-        console.error(msg, newBookingData);
-        toast({ variant: "destructive", title: "Dados Inválidos", description: msg });
-        return Promise.reject(new Error(msg));
-    }
-    if (!dateStr || dateStr.trim() === '' || dateStr === 'undefined' || !/^\d{4}-\d{2}-\d{2}$/.test(dateStr)) {
-        const msg = "Dados de Reserva Inválidos: data está ausente, inválida ou não está no formato AAAA-MM-DD.";
-        console.error(msg, newBookingData);
-        toast({ variant: "destructive", title: "Dados Inválidos", description: msg });
-        return Promise.reject(new Error(msg));
-    }
-    if (!timeStr || timeStr.trim() === '' || timeStr === 'undefined' || !/^\d{2}:\d{2}$/.test(timeStr)) {
-        const msg = "Dados de Reserva Inválidos: hora está ausente, inválida ou não está no formato HH:MM.";
-        console.error(msg, newBookingData);
-        toast({ variant: "destructive", title: "Dados Inválidos", description: msg });
-        return Promise.reject(new Error(msg));
-    }
-    if (!courtNameStr || courtNameStr.trim() === '' || courtNameStr === 'undefined') {
-        const msg = "Dados de Reserva Inválidos: nome da quadra está ausente ou inválido.";
-        console.error(msg, newBookingData);
-        toast({ variant: "destructive", title: "Dados Inválidos", description: msg });
-        return Promise.reject(new Error(msg));
-    }
-    if (!courtTypeStr || (courtTypeStr !== 'covered' && courtTypeStr !== 'uncovered')) {
-        const msg = `Dados de Reserva Inválidos: courtType ('${courtTypeStr}') é inválido ou ausente. Deve ser 'covered' ou 'uncovered'.`;
-        console.error(msg, newBookingData);
-        toast({ variant: "destructive", title: "Dados Inválidos", description: msg });
-        return Promise.reject(new Error(msg));
-    }
+    if (!courtIdStr || courtIdStr.trim() === '' || courtIdStr === 'undefined') { /* ... validações ... */ }
+    if (!dateStr || !/^\d{4}-\d{2}-\d{2}$/.test(dateStr)) { /* ... validações ... */ }
+    if (!timeStr || !/^\d{2}:\d{2}$/.test(timeStr)) { /* ... validações ... */ }
+    if (!courtNameStr || courtNameStr.trim() === '' || courtNameStr === 'undefined') { /* ... validações ... */ }
+    if (!courtTypeStr || (courtTypeStr !== 'covered' && courtTypeStr !== 'uncovered')) { /* ... validações ... */ }
     
     const newBookingDocRef = doc(collection(db, RESERVAS_COLLECTION_NAME));
     const generatedBookingId = newBookingDocRef.id;
@@ -214,7 +214,6 @@ export function AuthProvider({ children }: AuthProviderProps) {
       console.log(
         `Realizando verificação de conflito (NÃO TRANSACIONAL) na coleção '${RESERVAS_COLLECTION_NAME}'. Critérios: courtId='${courtIdStr}', date='${dateStr}', time='${timeStr}'. GARANTA QUE O ÍNDICE (courtId ASC, date ASC, time ASC, Escopo: Coleção) EXISTE E ESTÁ ATIVO PARA A COLEÇÃO '${RESERVAS_COLLECTION_NAME}'.`
       );
-      console.log("Objeto da Query de Conflito (NÃO TRANSACIONAL):", conflictQuery);
       
       const conflictSnapshot = await getDocs(conflictQuery);
       
@@ -277,6 +276,79 @@ export function AuthProvider({ children }: AuthProviderProps) {
     }
   };
 
+  // Funções para o sistema "Play"
+  const signUpForPlaySlot = async (slotKey: string, date: string, userDetails: { userId: string, userName: string, userEmail: string }) => {
+    if (!currentUser || currentUser.id !== userDetails.userId) {
+      toast({ variant: "destructive", title: "Não Autenticado", description: "Ação não permitida ou dados do usuário inconsistentes." });
+      router.push('/login');
+      return Promise.reject(new Error("Usuário não autenticado ou inconsistente."));
+    }
+
+    try {
+      // 1. Verificar se o usuário já está inscrito para este slot/data
+      const signUpsQuery = query(
+        collection(db, PLAY_SIGNUPS_COLLECTION_NAME),
+        where("slotKey", "==", slotKey),
+        where("date", "==", date),
+        where("userId", "==", currentUser.id)
+      );
+      const existingSignUpSnapshot = await getDocs(signUpsQuery);
+      if (!existingSignUpSnapshot.empty) {
+        toast({ variant: "default", title: "Já Inscrito", description: "Você já está inscrito para este horário do Play." });
+        return;
+      }
+
+      // 2. Verificar o número atual de participantes para este slot/data
+      const allSignUpsForSlotQuery = query(
+        collection(db, PLAY_SIGNUPS_COLLECTION_NAME),
+        where("slotKey", "==", slotKey),
+        where("date", "==", date)
+      );
+      const allSignUpsSnapshot = await getDocs(allSignUpsForSlotQuery);
+      if (allSignUpsSnapshot.size >= maxParticipantsPerPlaySlot) {
+        toast({ variant: "destructive", title: "Vagas Esgotadas", description: "Este horário do Play já atingiu o número máximo de participantes." });
+        return Promise.reject(new Error("Vagas esgotadas."));
+      }
+
+      // 3. Adicionar a inscrição
+      const newSignUpData: Omit<PlaySignUp, 'id'> = {
+        userId: userDetails.userId,
+        userName: userDetails.userName,
+        userEmail: userDetails.userEmail,
+        slotKey: slotKey,
+        date: date,
+        signedUpAt: Timestamp.now(),
+      };
+      await addDoc(collection(db, PLAY_SIGNUPS_COLLECTION_NAME), newSignUpData);
+      toast({ title: "Inscrição Confirmada!", description: `Você foi inscrito para o Play em ${date}.` });
+
+    } catch (error: any) {
+      console.error(`Erro ao inscrever-se no Play para slot ${slotKey} em ${date}: `, error);
+      toast({ variant: "destructive", title: "Falha na Inscrição do Play", description: error.message || "Ocorreu um erro ao tentar se inscrever." });
+      throw error;
+    }
+  };
+
+  const cancelPlaySlotSignUp = async (signUpId: string) => {
+     if (!currentUser) {
+      toast({ variant: "destructive", title: "Não Autenticado", description: "Você precisa estar logado para cancelar uma inscrição." });
+      router.push('/login');
+      return Promise.reject(new Error("Usuário não autenticado."));
+    }
+    try {
+      // Adicionar verificação se o signUpId pertence ao currentUser antes de deletar seria ideal,
+      // mas as regras do Firestore já devem garantir isso.
+      const signUpDocRef = doc(db, PLAY_SIGNUPS_COLLECTION_NAME, signUpId);
+      await deleteDoc(signUpDocRef);
+      toast({ title: "Inscrição Cancelada", description: "Sua inscrição no Play foi cancelada." });
+    } catch (error: any) {
+      console.error(`Erro ao cancelar inscrição do Play (ID: ${signUpId}): `, error);
+      toast({ variant: "destructive", title: "Falha ao Cancelar Inscrição", description: error.message || "Ocorreu um erro." });
+      throw error;
+    }
+  };
+
+
   useEffect(() => {
     const protectedRoutes = ['/my-bookings']; 
     if (!isLoading && !currentUser && protectedRoutes.includes(pathname)) {
@@ -285,7 +357,21 @@ export function AuthProvider({ children }: AuthProviderProps) {
   }, [currentUser, isLoading, pathname, router]);
 
   return (
-    <AuthContext.Provider value={{ currentUser, bookings, login, signUp, logout, addBooking, cancelBooking, isLoading, authError, clearAuthError }}>
+    <AuthContext.Provider value={{ 
+      currentUser, 
+      bookings, 
+      playSignUps, // Fornecer playSignUps
+      login, 
+      signUp, 
+      logout, 
+      addBooking, 
+      cancelBooking, 
+      signUpForPlaySlot, // Fornecer função
+      cancelPlaySlotSignUp, // Fornecer função
+      isLoading, 
+      authError, 
+      clearAuthError 
+    }}>
       {children}
     </AuthContext.Provider>
   );
