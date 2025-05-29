@@ -11,7 +11,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { useAuth } from '@/hooks/useAuth';
-import { Loader2, AlertCircle, MailCheck } from 'lucide-react';
+import { Loader2, AlertCircle, MailCheck, TimerIcon } from 'lucide-react';
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 
 const forgotPasswordSchema = z.object({
@@ -20,21 +20,18 @@ const forgotPasswordSchema = z.object({
 
 type ForgotPasswordFormValues = z.infer<typeof forgotPasswordSchema>;
 
+const COUNTDOWN_SECONDS = 30;
+
 export function ForgotPasswordForm() {
   const { sendPasswordReset, isLoading, authError, clearAuthError } = useAuth();
   const [isClient, setIsClient] = useState(false);
   const [emailSent, setEmailSent] = useState(false);
+  const [isTimerActive, setIsTimerActive] = useState(false);
+  const [countdown, setCountdown] = useState(COUNTDOWN_SECONDS);
 
   useEffect(() => {
     setIsClient(true);
   }, []);
-
-  const form = useForm<ForgotPasswordFormValues>({
-    resolver: zodResolver(forgotPasswordSchema),
-    defaultValues: {
-      email: "",
-    },
-  });
 
   useEffect(() => {
     // Limpar erro de autenticação ao desmontar ou se o erro mudar
@@ -42,27 +39,63 @@ export function ForgotPasswordForm() {
       if (authError) clearAuthError();
     };
   }, [authError, clearAuthError]);
+  
+  useEffect(() => {
+    if (authError) {
+      setEmailSent(false); // Garante que a mensagem de sucesso não apareça se houver erro
+      setIsTimerActive(false); // Para o timer se houver erro
+      setCountdown(COUNTDOWN_SECONDS);
+    }
+  }, [authError]);
+
+  useEffect(() => {
+    let intervalId: NodeJS.Timeout | undefined;
+    if (isTimerActive && countdown > 0) {
+      intervalId = setInterval(() => {
+        setCountdown((prevCountdown) => prevCountdown - 1);
+      }, 1000);
+    } else if (countdown === 0 && isTimerActive) {
+      setIsTimerActive(false);
+      setCountdown(COUNTDOWN_SECONDS); // Reset para a próxima vez
+      // Não resetamos emailSent aqui, o usuário precisa interagir com o campo de email
+    }
+    return () => {
+      if (intervalId) {
+        clearInterval(intervalId);
+      }
+    };
+  }, [isTimerActive, countdown]);
 
   const onSubmit = async (data: ForgotPasswordFormValues) => {
     clearAuthError();
     setEmailSent(false); // Resetar o estado de envio antes de tentar novamente
-    const success = await sendPasswordReset(data.email);
-    // sendPasswordReset no AuthContext já mostra um toast.
-    // Aqui, atualizamos o estado local `emailSent` APENAS se não houver authError após a chamada.
-    // Se authError for definido por sendPasswordReset, emailSent permanecerá/se tornará false.
-    if (!authError) { // Verifica o estado de authError *após* a tentativa de envio
+    
+    const success = await sendPasswordReset(data.email); 
+    // sendPasswordReset já mostra um toast.
+    // A verificação de authError APÓS a chamada é crucial.
+    if (!authError) { // Checa o estado de authError *após* a tentativa de envio
         setEmailSent(true);
+        setIsTimerActive(true);
+        setCountdown(COUNTDOWN_SECONDS);
+    }
+  };
+
+  const handleEmailInputChange = () => {
+    if (authError) clearAuthError();
+    // Se o email foi enviado ou um timer estava ativo, resetar tudo ao digitar
+    if (emailSent || isTimerActive) {
+      setEmailSent(false);
+      setIsTimerActive(false);
+      setCountdown(COUNTDOWN_SECONDS);
     }
   };
   
-  // Se authError for atualizado (por exemplo, por uma falha no envio),
-  // garante que emailSent seja false para não mostrar a mensagem de sucesso.
-  useEffect(() => {
-    if (authError) {
-      setEmailSent(false);
-    }
-  }, [authError]);
-
+  const getButtonText = () => {
+    if (isLoading) return "Enviando...";
+    if (isTimerActive) return `Aguarde ${countdown}s`;
+    if (emailSent && !authError) return "Link Enviado";
+    return "Enviar Link de Redefinição";
+  };
 
   return (
     <Card className="w-full max-w-md mx-auto">
@@ -73,8 +106,7 @@ export function ForgotPasswordForm() {
         </CardDescription>
       </CardHeader>
       <CardContent>
-        {/* Exibe alerta de sucesso SE emailSent for true E não houver authError */}
-        {emailSent && !authError && (
+        {emailSent && !authError && !isTimerActive && (
            <Alert variant="default" className="mb-6 border-green-500 bg-green-50 dark:bg-green-900/30">
             <MailCheck className="h-5 w-5 text-green-600 dark:text-green-400" />
             <AlertTitle className="text-green-700 dark:text-green-300">Verifique seu Email</AlertTitle>
@@ -83,7 +115,6 @@ export function ForgotPasswordForm() {
             </AlertDescription>
           </Alert>
         )}
-        {/* Exibe alerta de erro se authError estiver presente */}
         {authError && (
             <Alert variant="destructive" className="mb-6">
               <AlertCircle className="h-4 w-4" />
@@ -91,6 +122,7 @@ export function ForgotPasswordForm() {
               <AlertDescription>{authError}</AlertDescription>
             </Alert>
           )}
+        
         <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
           <div className="space-y-2">
             <Label htmlFor="email">Email</Label>
@@ -99,26 +131,28 @@ export function ForgotPasswordForm() {
               type="email"
               placeholder="seu.email@exemplo.com"
               {...form.register("email")}
-              // Desabilita o input se estiver carregando OU se o email foi enviado com sucesso (e não há erro)
-              disabled={isLoading || (emailSent && !authError)} 
-              onChange={() => {
-                // Se o usuário começar a digitar novamente:
-                if (authError) clearAuthError(); // Limpa o erro anterior
-                if (emailSent) setEmailSent(false); // Permite uma nova tentativa, reabilita o botão
-              }}
+              disabled={isLoading || isTimerActive} 
+              onChange={handleEmailInputChange}
             />
             {form.formState.errors.email && (
               <p className="text-sm text-destructive">{form.formState.errors.email.message}</p>
             )}
           </div>
+
+          {isTimerActive && (
+            <div className="text-sm text-muted-foreground p-2 text-center border rounded-md bg-muted/50 flex items-center justify-center gap-2">
+              <TimerIcon className="h-4 w-4"/>
+              <span>Você poderá solicitar um novo link em <strong>{countdown}</strong> segundos.</span>
+            </div>
+          )}
+
           <Button 
             type="submit" 
             className="w-full" 
-            // Desabilita o botão se estiver carregando OU se o email foi enviado com sucesso (e não há erro)
-            disabled={isLoading || (emailSent && !authError)}
+            disabled={isLoading || isTimerActive || (emailSent && !authError)}
           >
             {isLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-            {isLoading ? "Enviando..." : (emailSent && !authError) ? "Link Enviado" : "Enviar Link de Redefinição"}
+            {getButtonText()}
           </Button>
         </form>
       </CardContent>
@@ -130,12 +164,9 @@ export function ForgotPasswordForm() {
             </Button>
           </>
         ) : (
-          // Placeholder para SSR, para evitar layout shift
           <div className="h-[calc(1.25rem_+_theme(spacing.1)_+_1.25rem)] w-full" /> 
         )}
       </CardFooter>
     </Card>
   );
 }
-
-    
