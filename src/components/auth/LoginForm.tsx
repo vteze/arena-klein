@@ -33,17 +33,25 @@ export function LoginForm() {
       email: "",
       password: "",
     },
+    mode: 'onSubmit', // Explicitly set validation mode
+    reValidateMode: 'onChange', // Explicitly set re-validation mode
   });
 
   useEffect(() => {
-    // Clear error when component unmounts or form values change
+    // Clear authError (Firebase errors) when component unmounts.
+    // Zod errors are managed by react-hook-form itself.
     return () => {
       if (authError) clearAuthError();
     };
   }, [authError, clearAuthError]);
 
   const onSubmit = async (data: LoginFormValues) => {
-    clearAuthError(); // Clear previous errors
+    // DIAGNOSTIC LOG: Check if this function is called and with what data,
+    // especially when submitting with "Enter" and a short password.
+    // If called with password < 6 chars, react-hook-form/zodResolver isn't stopping submission.
+    console.log('LoginForm onSubmit triggered. Password length:', data.password.length, 'Data:', JSON.stringify(data));
+
+    clearAuthError(); // Clear previous Firebase errors before attempting login
     await login(data.email, data.password);
   };
 
@@ -70,7 +78,11 @@ export function LoginForm() {
               placeholder="seu.email@exemplo.com"
               {...form.register("email")}
               disabled={isLoading}
-              onChange={() => authError && clearAuthError()}
+              onChange={() => {
+                // Clear Firebase error when user types in email field
+                if (authError) clearAuthError();
+                // react-hook-form will clear its own Zod error for 'email' on change if reValidateMode is 'onChange'
+              }}
             />
             {form.formState.errors.email && (
               <p className="text-sm text-destructive">{form.formState.errors.email.message}</p>
@@ -84,7 +96,11 @@ export function LoginForm() {
               placeholder="Sua Senha"
               {...form.register("password")}
               disabled={isLoading}
-              onChange={() => authError && clearAuthError()}
+              onChange={() => {
+                 // Clear Firebase error when user types in password field
+                if (authError) clearAuthError();
+                // react-hook-form will clear its own Zod error for 'password' on change if reValidateMode is 'onChange'
+              }}
             />
             {form.formState.errors.password && (
               <p className="text-sm text-destructive">{form.formState.errors.password.message}</p>
