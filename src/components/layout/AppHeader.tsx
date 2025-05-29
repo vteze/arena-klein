@@ -3,7 +3,7 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { LogIn, LogOut, ListChecks, HomeIcon as HomeLucideIcon, UserPlus } from 'lucide-react'; // Added UserPlus
+import { LogIn, LogOut, ListChecks, HomeIcon as HomeLucideIcon, UserPlus, HelpCircle } from 'lucide-react'; // Added UserPlus and HelpCircle
 import { APP_NAME } from '@/config/appConfig';
 import { useAuth } from '@/hooks/useAuth';
 import { Button } from '@/components/ui/button';
@@ -18,7 +18,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { Skeleton } from '../ui/skeleton'; // Added Skeleton
+import { Skeleton } from '../ui/skeleton'; 
 
 export function AppHeader() {
   const { currentUser, logout, isLoading } = useAuth();
@@ -26,10 +26,11 @@ export function AppHeader() {
 
   const navLinks = [
     { href: '/', label: 'Início', icon: HomeLucideIcon },
+    { href: '/faq', label: 'FAQ', icon: HelpCircle }, // Added FAQ link
   ];
-  // Conditionally add "Minhas Reservas" if user is logged in, or always show and let page redirect
+  
   if (currentUser) {
-    navLinks.push({ href: '/my-bookings', label: 'Minhas Reservas', icon: ListChecks });
+    navLinks.splice(1, 0, { href: '/my-bookings', label: 'Minhas Reservas', icon: ListChecks });
   }
 
 
@@ -38,7 +39,7 @@ export function AppHeader() {
     if (nameParts.length === 1 && nameParts[0].length > 0) return nameParts[0].substring(0,2).toUpperCase();
     return nameParts
       .map(n => n[0])
-      .filter(Boolean) // Ensure no undefined if name is empty string
+      .filter(Boolean) 
       .join('')
       .toUpperCase();
   };
@@ -89,7 +90,6 @@ export function AppHeader() {
               <DropdownMenuTrigger asChild>
                 <Button variant="ghost" className="relative h-10 w-10 rounded-full p-0">
                   <Avatar className="h-10 w-10">
-                    {/* Placeholder image can be enhanced or removed if initials are preferred */}
                     <AvatarImage 
                       src={`https://placehold.co/100x100.png?text=${getInitials(currentUser.name)}`} 
                       alt={currentUser.name || 'User Avatar'} 
