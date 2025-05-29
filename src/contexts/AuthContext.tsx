@@ -63,14 +63,14 @@ export function AuthProvider({ children }: AuthProviderProps) {
       setBookings(allBookings);
     }, (error) => {
       console.error("Error fetching all bookings: ", error);
-      toast({ variant: "destructive", title: "Erro ao buscar dados de reservas", description: "Não foi possível carregar os dados de todas as reservas." });
+      toast({ variant: "destructive", title: "Erro ao buscar dados de reservas", description: "Não foi possível carregar os dados de todas as reservas. Verifique as regras do Firestore." });
     });
 
     return () => {
       unsubscribeAuth();
       unsubscribeBookings();
     };
-  }, [toast]);
+  }, []); 
 
 
   const clearAuthError = () => setAuthError(null);
@@ -155,6 +155,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
     try {
       await runTransaction(db, async (transaction) => {
         const bookingsRef = collection(db, "bookings");
+        // This query needs a composite index on courtId, date, and time.
         const conflictQuery = query(
           bookingsRef,
           where("courtId", "==", newBookingData.courtId),
@@ -162,13 +163,14 @@ export function AuthProvider({ children }: AuthProviderProps) {
           where("time", "==", newBookingData.time)
         );
 
+        console.log("Attempting to get conflict snapshot with query:", conflictQuery);
         const conflictSnapshot = await transaction.get(conflictQuery);
+        console.log("Conflict snapshot empty:", conflictSnapshot.empty);
 
         if (!conflictSnapshot.empty) {
           throw new Error("Este horário já foi reservado. Por favor, escolha outro.");
         }
 
-        // Use doc(collection(...)) to generate a new ID
         const newBookingDocRef = doc(collection(db, "bookings")); 
         generatedBookingId = newBookingDocRef.id;
 
@@ -186,7 +188,13 @@ export function AuthProvider({ children }: AuthProviderProps) {
       });
       return generatedBookingId; 
     } catch (error: any) {
-      console.error("Error adding booking (transaction): ", error);
+      console.error("Error adding booking (transaction or pre-transaction): ", error);
+      // Log the specific error for debugging index issues or other transaction failures
+      if (error.message && error.message.includes("FIRESTORE_INDEX_NEARBY")) {
+         toast({ variant: "destructive", title: "Erro de Índice no Firestore", description: "Um índice necessário está faltando. Verifique o console para um link para criá-lo." });
+      } else if (error.message === "Este horário já foi reservado. Por favor, escolha outro.") {
+         toast({ variant: "destructive", title: "Horário Indisponível", description: error.message });
+      }
       throw error; 
     }
   };
