@@ -14,7 +14,7 @@ import {
   type User as FirebaseUser
 } from 'firebase/auth';
 import { auth, db } from '@/lib/firebase';
-import { collection, addDoc, query, where, getDocs, onSnapshot, doc, setDoc, serverTimestamp } from 'firebase/firestore';
+import { collection, addDoc, query, where, getDocs, onSnapshot, doc, setDoc, serverTimestamp, deleteDoc } from 'firebase/firestore';
 import { useToast } from "@/hooks/use-toast";
 
 export interface AuthContextType {
@@ -24,6 +24,7 @@ export interface AuthContextType {
   signUp: (name: string, email: string, pass: string) => Promise<void>;
   logout: () => Promise<void>;
   addBooking: (newBooking: Omit<Booking, 'id' | 'userId' | 'userName'>) => Promise<void>;
+  cancelBooking: (bookingId: string) => Promise<void>;
   isLoading: boolean;
   authError: string | null;
   clearAuthError: () => void;
@@ -64,6 +65,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
   useEffect(() => {
     if (currentUser && !isLoading) {
       const bookingsCol = collection(db, "bookings");
+      // Query for bookings where the userId matches the current user's ID
       const q = query(bookingsCol, where("userId", "==", currentUser.id));
       
       const unsubscribeBookings = onSnapshot(q, (querySnapshot) => {
@@ -108,16 +110,15 @@ export function AuthProvider({ children }: AuthProviderProps) {
       if (userCredential.user) {
         await updateProfile(userCredential.user, { displayName: name });
         
-        // Create a user document in Firestore
         const userDocRef = doc(db, "users", userCredential.user.uid);
         await setDoc(userDocRef, {
-          uid: userCredential.user.uid, // Storing uid also in the document for easier queries if needed
+          uid: userCredential.user.uid,
           name: name,
           email: email,
-          createdAt: serverTimestamp(), // Records the time the user was created
+          createdAt: serverTimestamp(),
         });
 
-        setCurrentUser({ // Manually update context state as onAuthStateChanged might be slightly delayed
+        setCurrentUser({ 
           id: userCredential.user.uid,
           email: userCredential.user.email || "",
           name: name,
@@ -155,7 +156,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
       setAuthError("Você precisa estar logado para fazer uma reserva.");
       toast({ variant: "destructive", title: "Não Autenticado", description: "Você precisa estar logado para fazer uma reserva."});
       router.push('/login');
-      return;
+      return Promise.reject(new Error("Usuário não autenticado"));
     }
     try {
       const bookingWithUser: Omit<Booking, 'id'> = {
@@ -164,23 +165,42 @@ export function AuthProvider({ children }: AuthProviderProps) {
         userName: currentUser.name,
       };
       await addDoc(collection(db, "bookings"), bookingWithUser);
-      // Snapshot listener will update the bookings state automatically
     } catch (error) {
       console.error("Error adding booking: ", error);
       toast({ variant: "destructive", title: "Erro na Reserva", description: "Não foi possível adicionar sua reserva." });
+      throw error; // Re-throw error to be caught by caller
     }
   };
 
+  const cancelBooking = async (bookingId: string) => {
+    if (!currentUser) {
+      toast({ variant: "destructive", title: "Não Autenticado", description: "Você precisa estar logado para cancelar uma reserva."});
+      router.push('/login');
+      return Promise.reject(new Error("Usuário não autenticado"));
+    }
+    try {
+      const bookingDocRef = doc(db, "bookings", bookingId);
+      // Optionally, you could fetch the document first to ensure the current user is the owner,
+      // but Firestore rules should enforce this.
+      await deleteDoc(bookingDocRef);
+      // The onSnapshot listener will automatically update the local bookings state.
+    } catch (error) {
+      console.error("Error cancelling booking: ", error);
+      toast({ variant: "destructive", title: "Erro ao Cancelar", description: "Não foi possível cancelar sua reserva." });
+      throw error; // Re-throw error to be caught by caller
+    }
+  };
+
+
   useEffect(() => {
-    // Redirect to login if not authenticated and trying to access protected routes
-    const protectedRoutes = ['/my-bookings']; // Add other protected routes here
+    const protectedRoutes = ['/my-bookings']; 
     if (!isLoading && !currentUser && protectedRoutes.includes(pathname)) {
       router.push('/login');
     }
   }, [currentUser, isLoading, pathname, router]);
 
   return (
-    <AuthContext.Provider value={{ currentUser, bookings, login, signUp, logout, addBooking, isLoading, authError, clearAuthError }}>
+    <AuthContext.Provider value={{ currentUser, bookings, login, signUp, logout, addBooking, cancelBooking, isLoading, authError, clearAuthError }}>
       {children}
     </AuthContext.Provider>
   );
