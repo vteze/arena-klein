@@ -14,6 +14,10 @@ import { useAuth } from '@/hooks/useAuth';
 import { Loader2, AlertCircle } from 'lucide-react';
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 
+// Schema de validação para o formulário de login
+// A senha DEVE ter pelo menos 6 caracteres para ser enviada ao Firebase.
+// Se a senha tiver menos de 6 caracteres, o erro virá daqui (Zod).
+// Se a senha tiver 6+ caracteres mas estiver incorreta, o erro virá do Firebase (ex: "Senha incorreta").
 const loginSchema = z.object({
   email: z.string().email({ message: "Endereço de email inválido." }),
   password: z.string().min(6, { message: "A senha deve ter pelo menos 6 caracteres." }),

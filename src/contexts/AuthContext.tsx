@@ -22,29 +22,29 @@ import {
   setDoc, 
   serverTimestamp, 
   deleteDoc,
-  addDoc, // Para signUpForPlaySlot
-  getDocs, // Para verificação de conflito em addBooking e em signUpForPlaySlot
-  Timestamp, // Para signedUpAt
-  // runTransaction, // Removido
+  addDoc, 
+  getDocs, 
+  Timestamp,
+  // runTransaction, // Removido após refatoração do addBooking
 } from 'firebase/firestore';
 import { useToast } from "@/hooks/use-toast";
-import { maxParticipantsPerPlaySlot } from '@/config/appConfig'; // Importar o limite
+import { maxParticipantsPerPlaySlot } from '@/config/appConfig'; 
 
 export const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 const USERS_COLLECTION_NAME = "users";
-const RESERVAS_COLLECTION_NAME = "reservas";
-const PLAY_SIGNUPS_COLLECTION_NAME = "playSignUps"; // Nova coleção
+const RESERVAS_COLLECTION_NAME = "reservas"; // Coleção em português
+const PLAY_SIGNUPS_COLLECTION_NAME = "playSignUps"; 
 
 export function AuthProvider({ children }: AuthProviderProps) {
   const [currentUser, setCurrentUser] = useState<User | null>(null);
   const [bookings, setBookings] = useState<Booking[]>([]);
-  const [playSignUps, setPlaySignUps] = useState<PlaySignUp[]>([]); // Estado para inscrições do Play
+  const [playSignUps, setPlaySignUps] = useState<PlaySignUp[]>([]); 
   const [isLoading, setIsLoading] = useState(true); 
   const [authError, setAuthError] = useState<string | null>(null);
   const router = useRouter();
   const pathname = usePathname();
-  const { toast } = useToast();
+  const { toast } = useToast(); // Movido para fora do useEffect
 
   useEffect(() => {
     const unsubscribeAuth = onAuthStateChanged(auth, (firebaseUser: FirebaseUser | null) => {
@@ -60,7 +60,6 @@ export function AuthProvider({ children }: AuthProviderProps) {
       setIsLoading(false);
     });
 
-    // Listener para Reservas
     const reservasColRef = collection(db, RESERVAS_COLLECTION_NAME); 
     const qReservas = query(reservasColRef); 
     const unsubscribeBookings = onSnapshot(qReservas, (querySnapshot) => {
@@ -70,18 +69,17 @@ export function AuthProvider({ children }: AuthProviderProps) {
       });
       setBookings(allBookings);
     }, (error) => {
-      console.error(`Erro ao buscar dados da coleção '${RESERVAS_COLLECTION_NAME}': `, error);
+      console.error(`Erro ao buscar dados da coleção '${RESERVAS_COLLECTION_NAME}' (verifique regras e índices do Firestore): `, error);
       toast({ 
         variant: "destructive", 
-        title: `Erro ao buscar dados da coleção '${RESERVAS_COLLECTION_NAME}'`,
-        description: `Não foi possível carregar os dados de todas as reservas. Verifique suas Regras de Segurança do Firestore para permitir leitura pública ('list') desta coleção e os logs do console para mais detalhes. Erro: ${error.message}`,
+        title: `Erro ao buscar reservas`,
+        description: `Não foi possível carregar os dados de todas as reservas. Verifique suas Regras de Segurança do Firestore para permitir leitura pública ('list') da coleção '${RESERVAS_COLLECTION_NAME}' e os logs do console para mais detalhes. Erro: ${error.message}`,
         duration: 10000
       });
     });
 
-    // Listener para Inscrições do Play
     const playSignUpsColRef = collection(db, PLAY_SIGNUPS_COLLECTION_NAME);
-    const qPlaySignUps = query(playSignUpsColRef); // Pode-se adicionar ordenação por data/hora aqui se necessário
+    const qPlaySignUps = query(playSignUpsColRef); 
     const unsubscribePlaySignUps = onSnapshot(qPlaySignUps, (querySnapshot) => {
       const allSignUps: PlaySignUp[] = [];
       querySnapshot.forEach((doc) => {
@@ -98,13 +96,13 @@ export function AuthProvider({ children }: AuthProviderProps) {
       });
     });
 
-
     return () => {
       unsubscribeAuth();
       unsubscribeBookings();
-      unsubscribePlaySignUps(); // Limpar listener das inscrições do Play
+      unsubscribePlaySignUps(); 
     };
-  }, []);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []); // Removido toast das dependências pois é estável
 
 
   const clearAuthError = () => setAuthError(null);
@@ -165,8 +163,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
       await signOut(auth);
       setCurrentUser(null);
       router.push('/login');
-    } catch (error: any)
-     {
+    } catch (error: any) {
       console.error("Logout error:", error);
       const message = getFirebaseErrorMessage(error.code);
       setAuthError(message);
@@ -178,7 +175,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
 
   const addBooking = async (newBookingData: Omit<Booking, 'id' | 'userId' | 'userName'>): Promise<string> => {
     console.log(`addBooking (para coleção '${RESERVAS_COLLECTION_NAME}') chamada com newBookingData:`, JSON.stringify(newBookingData));
-  
+
     if (!currentUser) {
       const errMsg = "Você precisa estar logado para fazer uma reserva.";
       setAuthError(errMsg);
@@ -186,22 +183,33 @@ export function AuthProvider({ children }: AuthProviderProps) {
       router.push('/login');
       return Promise.reject(new Error(errMsg));
     }
-  
+
     const courtIdStr = String(newBookingData.courtId);
     const dateStr = String(newBookingData.date);
     const timeStr = String(newBookingData.time);
     const courtNameStr = String(newBookingData.courtName);
     const courtTypeStr = newBookingData.courtType;
-  
-    if (!courtIdStr || courtIdStr.trim() === '' || courtIdStr === 'undefined') { /* ... validações ... */ }
-    if (!dateStr || !/^\d{4}-\d{2}-\d{2}$/.test(dateStr)) { /* ... validações ... */ }
-    if (!timeStr || !/^\d{2}:\d{2}$/.test(timeStr)) { /* ... validações ... */ }
-    if (!courtNameStr || courtNameStr.trim() === '' || courtNameStr === 'undefined') { /* ... validações ... */ }
-    if (!courtTypeStr || (courtTypeStr !== 'covered' && courtTypeStr !== 'uncovered')) { /* ... validações ... */ }
-    
-    const newBookingDocRef = doc(collection(db, RESERVAS_COLLECTION_NAME));
+
+    // Validações robustas
+    if (!courtIdStr || courtIdStr.trim() === '' || courtIdStr === 'undefined') {
+      throw new Error("ID da quadra inválido.");
+    }
+    if (!dateStr || !/^\d{4}-\d{2}-\d{2}$/.test(dateStr)) {
+      throw new Error("Formato da data inválido. Use AAAA-MM-DD.");
+    }
+    if (!timeStr || !/^\d{2}:\d{2}$/.test(timeStr)) {
+      throw new Error("Formato da hora inválido. Use HH:mm.");
+    }
+    if (!courtNameStr || courtNameStr.trim() === '' || courtNameStr === 'undefined') {
+      throw new Error("Nome da quadra inválido.");
+    }
+    if (!courtTypeStr || (courtTypeStr !== 'covered' && courtTypeStr !== 'uncovered')) {
+      throw new Error("Tipo da quadra inválido. Use 'covered' ou 'uncovered'.");
+    }
+
+    const newBookingDocRef = doc(collection(db, RESERVAS_COLLECTION_NAME)); // Gera ID no cliente
     const generatedBookingId = newBookingDocRef.id;
-  
+
     try {
       const reservasColRef = collection(db, RESERVAS_COLLECTION_NAME);
       const conflictQuery = query(
@@ -210,7 +218,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
         where("date", "==", dateStr),
         where("time", "==", timeStr)
       );
-  
+      
       console.log(
         `Realizando verificação de conflito (NÃO TRANSACIONAL) na coleção '${RESERVAS_COLLECTION_NAME}'. Critérios: courtId='${courtIdStr}', date='${dateStr}', time='${timeStr}'. GARANTA QUE O ÍNDICE (courtId ASC, date ASC, time ASC, Escopo: Coleção) EXISTE E ESTÁ ATIVO PARA A COLEÇÃO '${RESERVAS_COLLECTION_NAME}'.`
       );
@@ -221,7 +229,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
         console.warn(`Conflito de reserva detectado (NÃO TRANSACIONAL) na coleção '${RESERVAS_COLLECTION_NAME}':`, conflictSnapshot.docs.map(d => d.data()));
         throw new Error("Este horário já foi reservado. Por favor, escolha outro (verificação não transacional).");
       }
-  
+
       const bookingToSave: Booking = {
         id: generatedBookingId, 
         userId: currentUser.id,
@@ -234,11 +242,10 @@ export function AuthProvider({ children }: AuthProviderProps) {
       };
       console.log(`Nenhum conflito encontrado (NÃO TRANSACIONAL). Tentando salvar nova reserva na coleção '${RESERVAS_COLLECTION_NAME}':`, bookingToSave);
       
-      await setDoc(newBookingDocRef, bookingToSave);
-  
+      await setDoc(newBookingDocRef, bookingToSave); // Salva com o ID gerado
       console.log(`Reserva (NÃO TRANSACIONAL) salva com sucesso na coleção '${RESERVAS_COLLECTION_NAME}'. ID da Reserva:`, generatedBookingId);
       return generatedBookingId;
-  
+
     } catch (error: any) {
       console.error(
         `Erro ao adicionar reserva (verificação não transacional ou escrita) na coleção '${RESERVAS_COLLECTION_NAME}'. Nome do Erro: "${error.name}" "Código do Erro:" ${error.code} "Mensagem do Erro:" "${error.message}" "Objeto de Erro Completo:"`, error
@@ -261,6 +268,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
     }
   };
 
+
   const cancelBooking = async (bookingId: string) => {
     if (!currentUser) {
       toast({ variant: "destructive", title: "Não Autenticado", description: "Você precisa estar logado para cancelar uma reserva."});
@@ -276,7 +284,6 @@ export function AuthProvider({ children }: AuthProviderProps) {
     }
   };
 
-  // Funções para o sistema "Play"
   const signUpForPlaySlot = async (slotKey: string, date: string, userDetails: { userId: string, userName: string, userEmail: string }) => {
     if (!currentUser || currentUser.id !== userDetails.userId) {
       toast({ variant: "destructive", title: "Não Autenticado", description: "Ação não permitida ou dados do usuário inconsistentes." });
@@ -285,7 +292,6 @@ export function AuthProvider({ children }: AuthProviderProps) {
     }
 
     try {
-      // 1. Verificar se o usuário já está inscrito para este slot/data
       const signUpsQuery = query(
         collection(db, PLAY_SIGNUPS_COLLECTION_NAME),
         where("slotKey", "==", slotKey),
@@ -298,7 +304,6 @@ export function AuthProvider({ children }: AuthProviderProps) {
         return;
       }
 
-      // 2. Verificar o número atual de participantes para este slot/data
       const allSignUpsForSlotQuery = query(
         collection(db, PLAY_SIGNUPS_COLLECTION_NAME),
         where("slotKey", "==", slotKey),
@@ -310,7 +315,6 @@ export function AuthProvider({ children }: AuthProviderProps) {
         return Promise.reject(new Error("Vagas esgotadas."));
       }
 
-      // 3. Adicionar a inscrição
       const newSignUpData: Omit<PlaySignUp, 'id'> = {
         userId: userDetails.userId,
         userName: userDetails.userName,
@@ -336,8 +340,6 @@ export function AuthProvider({ children }: AuthProviderProps) {
       return Promise.reject(new Error("Usuário não autenticado."));
     }
     try {
-      // Adicionar verificação se o signUpId pertence ao currentUser antes de deletar seria ideal,
-      // mas as regras do Firestore já devem garantir isso.
       const signUpDocRef = doc(db, PLAY_SIGNUPS_COLLECTION_NAME, signUpId);
       await deleteDoc(signUpDocRef);
       toast({ title: "Inscrição Cancelada", description: "Sua inscrição no Play foi cancelada." });
@@ -347,7 +349,6 @@ export function AuthProvider({ children }: AuthProviderProps) {
       throw error;
     }
   };
-
 
   useEffect(() => {
     const protectedRoutes = ['/my-bookings']; 
@@ -360,14 +361,14 @@ export function AuthProvider({ children }: AuthProviderProps) {
     <AuthContext.Provider value={{ 
       currentUser, 
       bookings, 
-      playSignUps, // Fornecer playSignUps
+      playSignUps, 
       login, 
       signUp, 
       logout, 
       addBooking, 
       cancelBooking, 
-      signUpForPlaySlot, // Fornecer função
-      cancelPlaySlotSignUp, // Fornecer função
+      signUpForPlaySlot, 
+      cancelPlaySlotSignUp, 
       isLoading, 
       authError, 
       clearAuthError 
@@ -389,7 +390,7 @@ function getFirebaseErrorMessage(errorCode: string): string {
       return "Senha incorreta.";
     case "auth/email-already-in-use":
       return "Este email já está em uso. Tente fazer login.";
-    case "auth/weak-password":
+    case "auth/weak-password": // Geralmente para registro
       return "A senha é muito fraca. Use pelo menos 6 caracteres.";
     case "auth/operation-not-allowed":
       return "Operação não permitida. Contate o suporte.";
