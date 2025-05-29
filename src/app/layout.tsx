@@ -1,29 +1,12 @@
 
 import type {Metadata} from 'next';
-import localFont from 'next/font/local'; // Changed from next/font/google
+import { GeistSans } from 'geist/font/sans';
+import { GeistMono } from 'geist/font/mono';
 import './globals.css';
 import { AuthProvider } from '@/contexts/AuthContext';
 import { AppHeader } from '@/components/layout/AppHeader';
 import { Toaster } from "@/components/ui/toaster";
 import { cn } from '@/lib/utils';
-
-// Configure Geist Sans locally
-// Make sure GeistVariableVF.woff2 is in src/app/fonts/
-const geistSans = localFont({
-  src: './fonts/GeistVariableVF.woff2', // Path relative to this layout.tsx file
-  variable: '--font-geist-sans',
-  display: 'swap',
-  weight: '100 900', // Specify weight range for variable font
-});
-
-// Configure Geist Mono locally
-// Make sure GeistMonoVariableVF.woff2 is in src/app/fonts/
-const geistMono = localFont({
-  src: './fonts/GeistMonoVariableVF.woff2', // Path relative to this layout.tsx file
-  variable: '--font-geist-mono',
-  display: 'swap',
-  weight: '100 900', // Specify weight range for variable font
-});
 
 export const metadata: Metadata = {
   title: 'Arena Klein Beach Tennis',
@@ -36,8 +19,8 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="pt-BR" suppressHydrationWarning>
-      <body className={cn("min-h-screen bg-background font-sans antialiased", geistSans.variable, geistMono.variable)}>
+    <html lang="pt-BR" suppressHydrationWarning className={`${GeistSans.variable} ${GeistMono.variable}`}>
+      <body className={cn("min-h-screen bg-background font-sans antialiased")}>
         <AuthProvider>
           <div className="relative flex min-h-screen flex-col">
             <AppHeader />
