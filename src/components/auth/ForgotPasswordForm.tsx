@@ -64,7 +64,6 @@ export function ForgotPasswordForm() {
     } else if (countdown === 0 && isTimerActive) {
       setIsTimerActive(false);
       setCountdown(COUNTDOWN_SECONDS); // Reset para a próxima vez
-      // Não resetamos emailSent aqui, o usuário precisa interagir com o campo de email
     }
     return () => {
       if (intervalId) {
@@ -75,59 +74,17 @@ export function ForgotPasswordForm() {
 
   const onSubmit = async (data: ForgotPasswordFormValues) => {
     clearAuthError();
-    setEmailSent(false); // Resetar o estado de envio antes de tentar novamente
+    setEmailSent(false); 
     
     await sendPasswordReset(data.email); 
-    // sendPasswordReset já mostra um toast.
-    // A verificação de authError APÓS a chamada é crucial.
-    // A lógica para setEmailSent e iniciar o timer agora depende do sucesso da operação,
-    // que é inferido pela ausência de authError *após* a chamada.
-    // É importante notar que sendPasswordReset em AuthContext não retorna um booleano de sucesso.
-    // Nós confiamos que se authError NÃO for definido após a chamada, a operação foi bem-sucedida.
-    // Isso é uma limitação da assinatura atual de sendPasswordReset.
-    // Para um feedback mais robusto, sendPasswordReset poderia retornar true/false.
-    
-    // Verificamos authError após a tentativa. Se não houver erro, consideramos sucesso.
-    // O useAuth hook atualiza authError. Precisamos esperar essa atualização,
-    // o que pode ser um pouco complicado sem um retorno explícito da função.
-    // Para simplificar, vamos assumir que se o toast de sucesso aparece,
-    // então está tudo bem. O `sendPasswordReset` já mostra um toast.
-    // A lógica aqui é para o estado do formulário.
-
-    // Solução: O estado de authError é atualizado no AuthContext.
-    // Um useEffect em ForgotPasswordForm já lida com o authError para resetar o timer/emailSent.
-    // Então, aqui, só precisamos definir emailSent como true para mostrar a mensagem e iniciar o timer,
-    // *confiando* que se houver um erro, o useEffect subsequente corrigirá o estado.
-    // Isso é um pouco indireto. O ideal seria sendPasswordReset retornar um booleano.
-
-    // Tentativa mais direta:
-    const wasSuccessful = !form.formState.errors.email && !authError; // Checa erro Zod E erro de auth APÓS submit
     
     // A verificação principal de erro acontece via `authError` no AuthContext.
-    // A lógica abaixo é para controle de UI do formulário (timer, mensagem).
-    // Se o `sendPasswordReset` for bem-sucedido, `authError` será null.
     // O hook `useAuth` lida com o toast de sucesso/erro.
     // Aqui, apenas iniciamos o timer se o toast de sucesso (implícito por não haver authError)
     // for esperado.
-
-    // A maneira mais simples de verificar se `sendPasswordReset` teve sucesso
-    // (sem modificar `sendPasswordReset` para retornar um booleano) é verificar
-    // se `authError` não foi setado *após* a chamada.
-    // Isso é um pouco complicado devido à natureza assíncrona e ao fato de `authError`
-    // ser gerenciado no contexto.
-    // Para o escopo desta correção, vamos assumir que se `sendPasswordReset`
-    // não lançar um erro que é pego e seta `authError` imediatamente,
-    // ele foi bem-sucedido para fins de UI aqui.
-
-    // Uma melhoria seria `sendPasswordReset` retornar true/false.
-    // Por enquanto, esta lógica funcionará para o timer se não houver `authError`
-    // após a chamada da função.
     // O `useEffect` que observa `authError` corrigirá o estado se um erro ocorrer.
     
-    // Solução pragmática: `sendPasswordReset` já dispara um toast.
-    // A lógica de `emailSent` aqui é para controle de UI *local*.
-    // Se `authError` for setado pelo `sendPasswordReset`, o `useEffect` [authError] cuidará de resetar.
-    if (!authError) { // Se o AuthContext não setar um erro após a chamada
+    if (!form.formState.errors.email && !authError) { // Verifica erro Zod E erro de auth APÓS submit
         setEmailSent(true);
         setIsTimerActive(true);
         setCountdown(COUNTDOWN_SECONDS);
@@ -139,7 +96,6 @@ export function ForgotPasswordForm() {
     if (form.formState.errors.email) {
         form.clearErrors("email");
     }
-    // Se o email foi enviado ou um timer estava ativo, resetar tudo ao digitar
     if (emailSent || isTimerActive) {
       setEmailSent(false);
       setIsTimerActive(false);
@@ -150,7 +106,7 @@ export function ForgotPasswordForm() {
   const getButtonText = () => {
     if (isLoading) return "Enviando...";
     if (isTimerActive) return `Aguarde ${countdown}s`;
-    if (emailSent && !authError && !isTimerActive) return "Link Enviado"; // Adicionado !isTimerActive
+    if (emailSent && !authError && !isTimerActive) return "Link Enviado";
     return "Enviar Link de Redefinição";
   };
 
@@ -206,7 +162,7 @@ export function ForgotPasswordForm() {
           <Button 
             type="submit" 
             className="w-full" 
-            disabled={isLoading || isTimerActive || (emailSent && !authError && !isTimerActive)} // Adicionado !isTimerActive à condição de desabilitar
+            disabled={isLoading || isTimerActive || (emailSent && !authError && !isTimerActive)}
           >
             {isLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
             {getButtonText()}
@@ -227,4 +183,3 @@ export function ForgotPasswordForm() {
     </Card>
   );
 }
-
