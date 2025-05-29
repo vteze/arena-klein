@@ -32,6 +32,7 @@ export function AppHeader() {
   
   let navLinks = [...navLinksBase];
 
+  // This logic correctly constructs navLinks based on currentUser for the fully loaded state
   if (currentUser) {
     const playIndex = navLinks.findIndex(link => link.href === '/play');
     if (playIndex !== -1) {
@@ -57,20 +58,20 @@ export function AppHeader() {
       <header className="sticky top-0 z-50 w-full border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
         <div className="container flex h-16 items-center justify-between">
           <div className="flex items-center gap-2">
-            <Skeleton className="h-9 w-9 rounded-sm" />
-            {/* Skeleton for the full name, visible sm and up, wrapped for responsive visibility */}
+            <Skeleton className="h-9 w-9 rounded-sm" /> {/* Logo skeleton */}
+            {/* Skeleton for the full name, visible sm and up */}
             <div className="hidden sm:inline-block">
               <Skeleton className="h-6 w-40 rounded bg-muted" />
             </div>
-            {/* Skeleton for "AK", visible xs only, wrapped for responsive visibility */}
+            {/* Skeleton for "AK", visible xs only */}
             <div className="sm:hidden">
               <Skeleton className="h-6 w-10 rounded bg-muted" />
             </div>
           </div>
-          {/* Basic skeleton for nav icons */}
+          {/* Basic skeleton for nav icons - USE navLinksBase FOR CONSISTENT LENGTH */}
           <div className="hidden sm:flex items-center gap-2">
-            {navLinks.map((_, i) => ( // Use navLinks to determine the number of skeletons based on current user state
-              <Skeleton key={i} className="h-8 w-8 rounded-md bg-muted" />
+            {navLinksBase.map((_, i) => ( 
+              <Skeleton key={`skel-nav-${i}`} className="h-8 w-8 rounded-md bg-muted" />
             ))}
           </div>
           <div className="flex items-center gap-2">
