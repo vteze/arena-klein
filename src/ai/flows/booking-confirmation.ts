@@ -71,13 +71,24 @@ const personalizedBookingConfirmationFlow = ai.defineFlow(
   async input => {
     const response = await bookingConfirmationPrompt(input);
     if (!response.output) {
-      console.error('Genkit prompt (bookingConfirmationPrompt) did not return an output.', 'Input:', input, 'Full response:', response);
-      // Consider logging response.text() or other parts of the response if available
-      // to see what the AI returned instead of structured output.
-      // For example: console.error('AI text response:', response.text);
-      throw new Error('Falha ao gerar a mensagem de confirmação pela IA. A resposta da IA estava vazia ou em formato incorreto.');
+      let aiTextResponse = 'N/A';
+      let detailedError = 'A resposta da IA estava vazia ou em formato incorreto (sem output estruturado).';
+      try {
+        aiTextResponse = response.text; // Acessa o texto bruto da IA
+        detailedError = `A resposta da IA não pôde ser processada no formato esperado. Texto recebido (início): ${aiTextResponse.substring(0,150)}...`;
+      } catch (e) {
+        aiTextResponse = 'Erro ao tentar acessar response.text.';
+        detailedError = 'Erro crítico ao tentar ler a resposta da IA.';
+      }
+      
+      console.error(
+        'Falha no Genkit prompt (bookingConfirmationPrompt): Não retornou um output estruturado válido.',
+        'Input fornecido:', input,
+        'Texto bruto da IA (response.text):', aiTextResponse,
+        'Objeto de resposta completo da IA (response):', JSON.stringify(response) // Loga o objeto response completo
+      );
+      throw new Error(`Falha ao gerar a mensagem de confirmação pela IA. ${detailedError}`);
     }
     return response.output;
   }
 );
-

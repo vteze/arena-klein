@@ -82,12 +82,13 @@ export function BookingConfirmationDialog({
         duration: 7000, 
       });
       onOpenChange(false);
-    } catch (error) {
-      console.error("Falha na reserva:", error);
+    } catch (error: any) {
+      console.error("Falha na reserva (pega no BookingConfirmationDialog):", error);
       toast({
         variant: "destructive",
         title: "Falha na Reserva",
-        description: "Ocorreu um erro ao tentar reservar a quadra. Por favor, tente novamente.",
+        description: error?.message || "Ocorreu um erro ao tentar processar a confirmação da reserva. Por favor, tente novamente.",
+        duration: 9000,
       });
     } finally {
       setIsBooking(false);
