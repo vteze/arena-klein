@@ -28,6 +28,7 @@ export const availableTimeSlots: string[] = [
 ];
 
 // Configuração para o sistema "Play"
+// dayOfWeek: 0 (Domingo), 1 (Segunda), ..., 5 (Sexta), 6 (Sábado)
 export const playSlotsConfig: PlaySlotConfig[] = [
   { key: "sexta-16-20", label: "Sextas-Feiras Play", dayOfWeek: 5, timeRange: "16:00 - 20:00" }, // Sexta-feira
   { key: "sabado-16-20", label: "Sábados Play", dayOfWeek: 6, timeRange: "16:00 - 20:00" }, // Sábado
@@ -35,4 +36,5 @@ export const playSlotsConfig: PlaySlotConfig[] = [
 ];
 
 export const maxParticipantsPerPlaySlot = 20; // Máximo de 20 participantes por slot/data do Play
-export const numberOfWeeksToDisplayPlaySlots = 2; // Mostrar slots para as próximas N semanas
+export const numberOfWeeksToDisplayPlaySlots = 4; // Mostrar slots para as próximas 4 semanas (aprox. 1 mês)
+
