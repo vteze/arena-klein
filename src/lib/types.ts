@@ -34,8 +34,8 @@ export interface TimeSlot {
 export interface PlaySlotConfig {
   key: string;
   label: string;
-  dayOfWeek: number;
-  timeRange: string;
+  dayOfWeek: number; // 0 (Sunday) to 6 (Saturday)
+  timeRange: string; // e.g., "16:00 - 20:00"
 }
 
 export interface PlaySignUp {
@@ -43,9 +43,9 @@ export interface PlaySignUp {
   userId: string;
   userName: string;
   userEmail: string;
-  slotKey: string;
-  date: string; // YYYY-MM-DD
-  signedUpAt: any;
+  slotKey: string; // Corresponds to PlaySlotConfig.key
+  date: string; // YYYY-MM-DD, specific date of the play session
+  signedUpAt: any; // Firestore Timestamp
 }
 
 
@@ -53,7 +53,7 @@ import type { ReactNode } from 'react';
 
 export interface AuthContextType {
   currentUser: User | null;
-  isAdmin: boolean; // New property for admin status
+  isAdmin: boolean;
   bookings: Booking[];
   playSignUps: PlaySignUp[];
   login: (email: string, pass: string) => Promise<void>;
@@ -62,6 +62,7 @@ export interface AuthContextType {
   sendPasswordReset: (email: string) => Promise<void>;
   addBooking: (newBooking: Omit<Booking, 'id' | 'userId' | 'userName'>) => Promise<string>;
   cancelBooking: (bookingId: string) => Promise<void>;
+  updateBookingByAdmin: (bookingId: string, newDate: string, newTime: string) => Promise<void>; // New
   signUpForPlaySlot: (slotKey: string, date: string, userDetails: { userId: string, userName: string, userEmail: string }) => Promise<void>;
   cancelPlaySlotSignUp: (signUpId: string) => Promise<void>;
   isLoading: boolean;

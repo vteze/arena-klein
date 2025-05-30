@@ -5,19 +5,29 @@ import { useState } from 'react';
 import type { Booking } from '@/lib/types';
 import { Card, CardContent, CardHeader, CardTitle, CardFooter } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { CalendarDays, Clock, ShieldCheck, Sun, Trash2, User } from 'lucide-react'; // Added User icon
+import { CalendarDays, Clock, ShieldCheck, Sun, Trash2, User, Edit3Icon } from 'lucide-react';
 import { format, parseISO } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { BookingCancellationDialog } from './BookingCancellationDialog';
+import { EditBookingDialog } from './EditBookingDialog'; // New
+import { useAuth } from '@/hooks/useAuth'; // New
 
 interface BookingListItemProps {
   booking: Booking;
-  showUserName?: boolean; // Optional: to show user name for admins
+  showUserName?: boolean;
 }
 
 export function BookingListItem({ booking, showUserName = false }: BookingListItemProps) {
+  const { isAdmin } = useAuth(); // New
   const [isCancelDialogOpen, setIsCancelDialogOpen] = useState(false);
+  const [isEditDialogOpen, setIsEditDialogOpen] = useState(false); // New
   const bookingDate = parseISO(booking.date);
+
+  // Callback to close edit dialog, could also trigger a re-fetch or list update if needed
+  const handleBookingUpdated = () => {
+    setIsEditDialogOpen(false);
+    // Potentially trigger a refresh of bookings if not handled by global state listener
+  };
 
   return (
     <>
@@ -50,7 +60,18 @@ export function BookingListItem({ booking, showUserName = false }: BookingListIt
             <p className="text-xs text-muted-foreground pt-1">ID da Reserva: {booking.id}</p>
           </CardContent>
         </div>
-        <CardFooter className="pt-4 flex justify-end">
+        <CardFooter className="pt-4 flex justify-end gap-2">
+          {isAdmin && ( // New: Edit button for admins
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setIsEditDialogOpen(true)}
+              aria-label={`Editar reserva para ${booking.courtName} em ${format(bookingDate, "dd/MM/yyyy")} às ${booking.time}`}
+            >
+              <Edit3Icon className="mr-2 h-4 w-4" />
+              Editar
+            </Button>
+          )}
           <Button
             variant="destructive"
             size="sm"
@@ -67,6 +88,14 @@ export function BookingListItem({ booking, showUserName = false }: BookingListIt
           isOpen={isCancelDialogOpen}
           onOpenChange={setIsCancelDialogOpen}
           booking={booking}
+        />
+      )}
+      {isAdmin && isEditDialogOpen && ( // New: Render EditBookingDialog for admins
+        <EditBookingDialog
+          isOpen={isEditDialogOpen}
+          onOpenChange={setIsEditDialogOpen}
+          booking={booking}
+          onBookingUpdated={handleBookingUpdated}
         />
       )}
     </>

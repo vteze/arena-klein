@@ -6,10 +6,22 @@ import { useAuth } from '@/hooks/useAuth';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
-import { Users, UserPlus, UserMinus, Loader2 } from 'lucide-react';
+import { Users, UserPlus, UserMinus, Loader2, Trash2 } from 'lucide-react'; // Added Trash2
 import { maxParticipantsPerPlaySlot } from '@/config/appConfig';
 import { useState } from 'react';
 import Link from 'next/link';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
+
 
 interface PlaySlotDisplayProps {
   slotConfig: PlaySlotConfig;
@@ -19,8 +31,10 @@ interface PlaySlotDisplayProps {
 }
 
 export function PlaySlotDisplay({ slotConfig, date, displayDate, allSignUps }: PlaySlotDisplayProps) {
-  const { currentUser, signUpForPlaySlot, cancelPlaySlotSignUp, isLoading: authLoading } = useAuth();
+  const { currentUser, isAdmin, signUpForPlaySlot, cancelPlaySlotSignUp, isLoading: authLoading } = useAuth();
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [signUpToRemove, setSignUpToRemove] = useState<PlaySignUp | null>(null);
+
 
   const relevantSignUps = allSignUps.filter(
     (signUp) => signUp.slotKey === slotConfig.key && signUp.date === date
@@ -50,13 +64,26 @@ export function PlaySlotDisplay({ slotConfig, date, displayDate, allSignUps }: P
     }
   };
 
-  const handleCancelSignUp = async () => {
+  const handleCancelCurrentUserSignUp = async () => {
     if (!currentUserSignUp) return;
     setIsSubmitting(true);
     try {
       await cancelPlaySlotSignUp(currentUserSignUp.id);
     } catch (error) {
-      console.error("Erro no handleCancelSignUp:", error);
+      console.error("Erro no handleCancelCurrentUserSignUp:", error);
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const handleAdminRemoveSignUp = async (signUpId: string) => {
+    if (!isAdmin) return;
+    setIsSubmitting(true);
+    try {
+      await cancelPlaySlotSignUp(signUpId);
+      setSignUpToRemove(null); // Close dialog
+    } catch (error) {
+      console.error("Erro no handleAdminRemoveSignUp:", error);
     } finally {
       setIsSubmitting(false);
     }
@@ -73,6 +100,7 @@ export function PlaySlotDisplay({ slotConfig, date, displayDate, allSignUps }: P
   };
 
   return (
+    <>
     <Card className="shadow-lg">
       <CardHeader>
         <CardTitle className="text-xl">{slotConfig.label} - {displayDate}</CardTitle>
@@ -90,18 +118,31 @@ export function PlaySlotDisplay({ slotConfig, date, displayDate, allSignUps }: P
             )}
           </div>
           {relevantSignUps.length > 0 ? (
-            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
+            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-2 lg:grid-cols-3 gap-3">
               {relevantSignUps.map((signUp) => (
-                <div key={signUp.id} className="flex items-center gap-2 p-2 border rounded-md bg-muted/50">
-                  <Avatar className="h-8 w-8">
-                    <AvatarImage 
-                        src={`https://placehold.co/40x40.png?text=${getInitials(signUp.userName)}`} 
-                        alt={signUp.userName} 
-                        data-ai-hint="avatar perfil"
-                    />
-                    <AvatarFallback>{getInitials(signUp.userName)}</AvatarFallback>
-                  </Avatar>
-                  <span className="text-sm truncate" title={signUp.userName}>{signUp.userName}</span>
+                <div key={signUp.id} className="flex items-center justify-between gap-2 p-2 border rounded-md bg-muted/50">
+                  <div className="flex items-center gap-2 overflow-hidden">
+                    <Avatar className="h-8 w-8 flex-shrink-0">
+                      <AvatarImage 
+                          src={`https://placehold.co/40x40.png?text=${getInitials(signUp.userName)}`} 
+                          alt={signUp.userName} 
+                          data-ai-hint="avatar perfil"
+                      />
+                      <AvatarFallback>{getInitials(signUp.userName)}</AvatarFallback>
+                    </Avatar>
+                    <span className="text-sm truncate" title={signUp.userName}>{signUp.userName}</span>
+                  </div>
+                  {isAdmin && currentUser?.id !== signUp.userId && (
+                    <Button 
+                      variant="ghost" 
+                      size="icon" 
+                      className="h-7 w-7 text-destructive hover:bg-destructive/10"
+                      onClick={() => setSignUpToRemove(signUp)}
+                      aria-label={`Remover ${signUp.userName} desta sessão`}
+                    >
+                      <Trash2 className="h-4 w-4" />
+                    </Button>
+                  )}
                 </div>
               ))}
             </div>
@@ -121,12 +162,12 @@ export function PlaySlotDisplay({ slotConfig, date, displayDate, allSignUps }: P
         ) : currentUserSignUp ? (
           <Button
             variant="destructive"
-            onClick={handleCancelSignUp}
+            onClick={handleCancelCurrentUserSignUp}
             disabled={isSubmitting || authLoading}
             className="w-full"
           >
             {isSubmitting ? <Loader2 className="animate-spin mr-2" /> : <UserMinus className="mr-2" />}
-            Cancelar Inscrição
+            Cancelar Minha Inscrição
           </Button>
         ) : isSlotFull ? (
           <Button disabled className="w-full">
@@ -144,5 +185,30 @@ export function PlaySlotDisplay({ slotConfig, date, displayDate, allSignUps }: P
         )}
       </CardFooter>
     </Card>
+
+    {isAdmin && signUpToRemove && (
+        <AlertDialog open={!!signUpToRemove} onOpenChange={() => setSignUpToRemove(null)}>
+            <AlertDialogContent>
+                <AlertDialogHeader>
+                <AlertDialogTitle>Confirmar Remoção</AlertDialogTitle>
+                <AlertDialogDescription>
+                    Você tem certeza que deseja remover <span className="font-semibold">{signUpToRemove.userName}</span> da sessão "{slotConfig.label} - {displayDate}"?
+                </AlertDialogDescription>
+                </AlertDialogHeader>
+                <AlertDialogFooter>
+                <AlertDialogCancel onClick={() => setSignUpToRemove(null)} disabled={isSubmitting}>Cancelar</AlertDialogCancel>
+                <AlertDialogAction 
+                    onClick={() => handleAdminRemoveSignUp(signUpToRemove.id)} 
+                    disabled={isSubmitting}
+                    className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                >
+                    {isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                    Sim, Remover
+                </AlertDialogAction>
+                </AlertDialogFooter>
+            </AlertDialogContent>
+        </AlertDialog>
+    )}
+    </>
   );
 }

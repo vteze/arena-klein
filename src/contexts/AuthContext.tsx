@@ -26,7 +26,7 @@ import {
   addDoc,
   getDocs,
   getDoc,
-  runTransaction, // Certifique-se de que runTransaction está importado se for usá-lo
+  updateDoc, // Added for updateBookingByAdmin
   Timestamp,
 } from 'firebase/firestore';
 import { useToast } from "@/hooks/use-toast";
@@ -35,7 +35,7 @@ import { maxParticipantsPerPlaySlot } from '@/config/appConfig';
 export const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 const USERS_COLLECTION_NAME = "users";
-const RESERVAS_COLLECTION_NAME = "reservas"; // Nome da coleção em português
+const RESERVAS_COLLECTION_NAME = "reservas";
 const PLAY_SIGNUPS_COLLECTION_NAME = "playSignUps";
 const ADMINS_COLLECTION_NAME = "admins";
 
@@ -54,10 +54,17 @@ export function AuthProvider({ children }: AuthProviderProps) {
     setIsLoading(true);
     const unsubscribeAuth = onAuthStateChanged(auth, async (firebaseUser: FirebaseUser | null) => {
       if (firebaseUser) {
-        const user = {
+        const userDocRef = doc(db, USERS_COLLECTION_NAME, firebaseUser.uid);
+        const userDocSnap = await getDoc(userDocRef);
+        let userName = firebaseUser.displayName || firebaseUser.email?.split('@')[0] || "Usuário";
+        if (userDocSnap.exists()) {
+            userName = userDocSnap.data()?.name || userName;
+        }
+
+        const user: User = {
           id: firebaseUser.uid,
           email: firebaseUser.email || "",
-          name: firebaseUser.displayName || firebaseUser.email?.split('@')[0] || "Usuário",
+          name: userName,
         };
         setCurrentUser(user);
 
@@ -76,7 +83,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
           toast({
             variant: "destructive",
             title: "Erro ao Verificar Admin",
-            description: `Não foi possível verificar o status de administrador. Verifique as regras do Firestore. Erro: ${error.message}`,
+            description: `Não foi possível verificar o status de administrador. Verifique as regras do Firestore e a conexão. Erro: ${error.message}`,
             duration: 7000,
           });
           setIsAdmin(false);
@@ -129,7 +136,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
       unsubscribeBookings();
       unsubscribePlaySignUps();
     };
-  }, []); // Removido toast das dependências pois é estável
+  }, []);
 
 
   const clearAuthError = () => setAuthError(null);
@@ -164,8 +171,6 @@ export function AuthProvider({ children }: AuthProviderProps) {
           email: email,
           createdAt: serverTimestamp(),
         });
-        
-        // setCurrentUser will be handled by onAuthStateChanged, which also checks admin status
       }
       router.push('/');
     } catch (error: any) {
@@ -182,14 +187,12 @@ export function AuthProvider({ children }: AuthProviderProps) {
     setAuthError(null);
     try {
       await signOut(auth);
-      // currentUser and isAdmin will be reset by onAuthStateChanged
       router.push('/login');
     } catch (error: any) {
       console.error("Logout error:", error);
       const message = getFirebaseErrorMessage(error.code);
       setAuthError(message);
       toast({ variant: "destructive", title: "Falha ao Sair", description: message });
-      // setIsLoading will be handled by onAuthStateChanged
     }
   };
   
@@ -197,13 +200,13 @@ export function AuthProvider({ children }: AuthProviderProps) {
     setAuthError(null);
     try {
       await sendPasswordResetEmail(auth, emailAddress);
-      // Lembre-se de configurar o template de email de redefinição de senha
-      // para Português no console do Firebase > Authentication > Templates.
       toast({
         title: "Link de Redefinição Enviado",
-        description: `Se uma conta existir para ${emailAddress}, um email foi enviado com instruções para redefinir sua senha.`,
+        description: `Se uma conta existir para ${emailAddress}, um email foi enviado com instruções para redefinir sua senha. Verifique também sua caixa de spam.`,
         duration: 9000,
       });
+      // Lembre-se de configurar o template de email de redefinição de senha
+      // para Português no console do Firebase > Authentication > Templates.
     } catch (error: any) {
       console.error("Password reset error:", error);
       const message = getFirebaseErrorMessage(error.code);
@@ -237,8 +240,11 @@ export function AuthProvider({ children }: AuthProviderProps) {
     if (!/^\d{4}-\d{2}-\d{2}$/.test(dateStr)) throw new Error("Formato da data inválido. Use AAAA-MM-DD.");
     if (!/^\d{2}:\d{2}$/.test(timeStr)) throw new Error("Formato da hora inválido. Use HH:mm.");
     if (!courtNameStr) throw new Error("Nome da quadra inválido.");
-    if (courtTypeStr !== 'covered' && courtTypeStr !== 'uncovered') throw new Error("Tipo da quadra inválido.");
-
+    if (courtTypeStr !== 'covered' && courtTypeStr !== 'uncovered') {
+      console.error("Valor inválido para courtType:", courtTypeStr);
+      throw new Error("Tipo da quadra inválido. Deve ser 'covered' ou 'uncovered'.");
+    }
+    
     const generatedBookingId = doc(collection(db, RESERVAS_COLLECTION_NAME)).id;
 
     try {
@@ -287,7 +293,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
       } else if (error.name === 'TypeError' && error.message && error.message.includes("Cannot read properties of undefined (reading 'path')")) {
         toastDescription = `Falha Crítica na Reserva (Erro Interno Firestore). VERIFIQUE O ÍNDICE da coleção '${RESERVAS_COLLECTION_NAME}' (campos: courtId ASC, date ASC, time ASC; Escopo: Coleção). A consulta que falhou pode ser 'conflictQuery' dentro de addBooking.`;
       } else if (error.message && error.message.includes("Este horário já foi reservado")) {
-        // This specific error message is user-friendly enough
+         // This specific error message is user-friendly enough
       }
       
       toast({ 
@@ -316,6 +322,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
 
       const bookingData = bookingDocSnap.data() as Booking;
 
+      // Admin can cancel any booking, user can cancel their own
       if (isAdmin || currentUser.id === bookingData.userId) {
         await deleteDoc(bookingDocRef);
         toast({
@@ -335,6 +342,57 @@ export function AuthProvider({ children }: AuthProviderProps) {
       throw error;
     }
   };
+
+  const updateBookingByAdmin = async (bookingId: string, newDate: string, newTime: string) => {
+    if (!isAdmin) {
+      toast({ variant: "destructive", title: "Não Autorizado", description: "Apenas administradores podem editar reservas." });
+      return Promise.reject(new Error("Não autorizado."));
+    }
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(newDate) || !/^\d{2}:\d{2}$/.test(newTime)) {
+      throw new Error("Formato de data ou hora inválido.");
+    }
+
+    try {
+      const bookingDocRef = doc(db, RESERVAS_COLLECTION_NAME, bookingId);
+      const bookingSnap = await getDoc(bookingDocRef);
+      if (!bookingSnap.exists()) {
+        throw new Error("Reserva original não encontrada para edição.");
+      }
+      const existingBookingData = bookingSnap.data() as Booking;
+      const courtIdToUpdate = existingBookingData.courtId; // Admin edits date/time for the same court
+
+      // Check for conflict at the new date/time, excluding the current booking being edited
+      const conflictQuery = query(
+        collection(db, RESERVAS_COLLECTION_NAME),
+        where("courtId", "==", courtIdToUpdate),
+        where("date", "==", newDate),
+        where("time", "==", newTime)
+      );
+      const conflictSnapshot = await getDocs(conflictQuery);
+      if (!conflictSnapshot.empty) {
+        // Check if the conflict is with the booking itself (no real conflict if it's the same booking)
+        const conflictingBooking = conflictSnapshot.docs.find(d => d.id !== bookingId);
+        if (conflictingBooking) {
+          throw new Error(`Este novo horário (${newDate} às ${newTime}) já está reservado por outra pessoa.`);
+        }
+      }
+
+      await updateDoc(bookingDocRef, {
+        date: newDate,
+        time: newTime,
+      });
+      toast({ title: "Reserva Atualizada", description: `Reserva ID ${bookingId} atualizada para ${newDate} às ${newTime}.` });
+    } catch (error: any) {
+      console.error(`Erro ao atualizar reserva ID ${bookingId} pelo admin: `, error);
+      toast({
+        variant: "destructive",
+        title: "Falha ao Atualizar Reserva",
+        description: error.message || "Não foi possível atualizar a reserva.",
+      });
+      throw error;
+    }
+  };
+
 
   const signUpForPlaySlot = async (slotKey: string, date: string, userDetails: { userId: string, userName: string, userEmail: string }) => {
     if (!currentUser || currentUser.id !== userDetails.userId) {
@@ -392,9 +450,22 @@ export function AuthProvider({ children }: AuthProviderProps) {
       return Promise.reject(new Error("Usuário não autenticado."));
     }
     try {
+      // For admin, they can cancel any. For users, they can only cancel their own.
+      // The Firestore rules will enforce this.
       const signUpDocRef = doc(db, PLAY_SIGNUPS_COLLECTION_NAME, signUpId);
-      await deleteDoc(signUpDocRef);
-      toast({ title: "Inscrição Cancelada", description: "Sua inscrição no Play foi cancelada." });
+      const signUpDoc = await getDoc(signUpDocRef);
+      if (!signUpDoc.exists()) {
+          throw new Error("Inscrição não encontrada.");
+      }
+      
+      // If current user is admin, or if the signUp belongs to the current user
+      if (isAdmin || signUpDoc.data()?.userId === currentUser.id) {
+          await deleteDoc(signUpDocRef);
+          toast({ title: "Inscrição Cancelada", description: "A inscrição no Play foi cancelada." });
+      } else {
+          throw new Error("Você não tem permissão para cancelar esta inscrição.");
+      }
+
     } catch (error: any) {
       console.error(`Erro ao cancelar inscrição do Play (ID: ${signUpId}): `, error);
       toast({ variant: "destructive", title: "Falha ao Cancelar Inscrição", description: error.message || "Ocorreu um erro." });
@@ -403,10 +474,16 @@ export function AuthProvider({ children }: AuthProviderProps) {
   };
 
   useEffect(() => {
-    const protectedRoutes = ['/my-bookings'];
+    const protectedRoutes = ['/my-bookings', '/admin']; // '/admin' could be added here
     if (!isLoading && !currentUser && protectedRoutes.includes(pathname)) {
       router.push('/login');
     }
+    // Further admin-only route protection could be added here
+    if (!isLoading && currentUser && !isAdmin && pathname === '/admin') {
+        toast({variant: "destructive", title: "Acesso Negado", description: "Você não tem permissão para acessar esta página."});
+        router.push('/');
+    }
+
   }, [currentUser, isLoading, isAdmin, pathname, router]);
 
   return (
@@ -421,6 +498,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
       sendPasswordReset, 
       addBooking, 
       cancelBooking, 
+      updateBookingByAdmin,
       signUpForPlaySlot, 
       cancelPlaySlotSignUp, 
       isLoading, 
