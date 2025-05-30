@@ -3,7 +3,7 @@
 
 import type { User, Booking, PlaySignUp, AuthContextType, AuthProviderProps } from '@/lib/types';
 import { useRouter, usePathname } from 'next/navigation';
-import { createContext, useState, useEffect } from 'react';
+import { createContext, useState, useEffect, useCallback } from 'react';
 import { 
   onAuthStateChanged, 
   signOut, 
@@ -28,7 +28,6 @@ import {
   getDoc,
   updateDoc,
   Timestamp,
-  // runTransaction, // Removido runTransaction
 } from 'firebase/firestore';
 import { useToast } from "@/hooks/use-toast";
 import { maxParticipantsPerPlaySlot } from '@/config/appConfig';
@@ -36,7 +35,7 @@ import { maxParticipantsPerPlaySlot } from '@/config/appConfig';
 export const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 const USERS_COLLECTION_NAME = "users";
-const RESERVAS_COLLECTION_NAME = "reservas"; // Alterado para "reservas"
+const RESERVAS_COLLECTION_NAME = "reservas";
 const PLAY_SIGNUPS_COLLECTION_NAME = "playSignUps";
 const ADMINS_COLLECTION_NAME = "admins";
 
@@ -51,6 +50,8 @@ export function AuthProvider({ children }: AuthProviderProps) {
   const router = useRouter();
   const pathname = usePathname();
   const { toast } = useToast();
+
+  const clearAuthError = useCallback(() => setAuthError(null), []);
 
   useEffect(() => {
     setIsLoading(true);
@@ -76,7 +77,6 @@ export function AuthProvider({ children }: AuthProviderProps) {
           if (adminDocSnap.exists()) {
             setIsAdmin(true);
             console.log(`User ${firebaseUser.uid} is an admin.`);
-            // Fetch total users if admin
             try {
               const usersCollectionRef = collection(db, USERS_COLLECTION_NAME);
               const usersSnapshot = await getDocs(usersCollectionRef);
@@ -85,23 +85,23 @@ export function AuthProvider({ children }: AuthProviderProps) {
               console.error("Error fetching total users:", usersError);
               toast({
                 variant: "destructive",
-                title: "Erro ao Buscar Usuários",
-                description: `Não foi possível carregar o total de usuários. Erro: ${usersError.message}`,
-                duration: 7000,
+                title: "Erro ao Buscar Usuários (Admin)",
+                description: `Permissão negada ou erro ao contar usuários. Verifique regras do Firestore para 'users'. Erro: ${getFirebaseErrorMessage(usersError.code, "Falha ao buscar contagem de usuários.")}`,
+                duration: 9000,
               });
             }
           } else {
             setIsAdmin(false);
-            setTotalUsers(0); // Reset if not admin
+            setTotalUsers(0);
             console.log(`User ${firebaseUser.uid} is NOT an admin.`);
           }
         } catch (error: any) {
           console.error("Error checking admin status:", error);
-          toast({
+           toast({
             variant: "destructive",
-            title: "Erro ao Verificar Admin",
-            description: `Não foi possível verificar o status de administrador devido a: ${error.message}. Verifique as regras do Firestore e a conexão.`,
-            duration: 9000,
+            title: "Erro Crítico ao Verificar Admin",
+            description: `Não foi possível verificar o status de administrador. ${getFirebaseErrorMessage(error.code, "Verifique as regras do Firestore para a coleção 'admins' e a conexão.")}`,
+            duration: 10000,
           });
           setIsAdmin(false);
           setTotalUsers(0);
@@ -127,7 +127,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
       toast({ 
         variant: "destructive", 
         title: `Erro ao Buscar Reservas`,
-        description: `Não foi possível carregar os dados de todas as reservas. Verifique suas Regras de Segurança e Índices do Firestore. Erro: ${error.message}`,
+        description: `Não foi possível carregar os dados de todas as reservas. Verifique suas Regras de Segurança do Firestore (especialmente 'allow list: if true;') e Índices. Erro: ${getFirebaseErrorMessage(error.code, "Falha ao carregar reservas.")}`,
         duration: 10000
       });
     });
@@ -145,7 +145,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
       toast({ 
         variant: "destructive", 
         title: `Erro ao Buscar Inscrições do Play`,
-        description: `Não foi possível carregar os dados das inscrições do Play. Verifique suas Regras de Segurança e Índices do Firestore. Erro: ${error.message}`,
+        description: `Não foi possível carregar os dados das inscrições do Play. Verifique suas Regras de Segurança e Índices do Firestore. Erro: ${getFirebaseErrorMessage(error.code, "Falha ao carregar inscrições Play.")}`,
         duration: 10000
       });
     });
@@ -155,10 +155,8 @@ export function AuthProvider({ children }: AuthProviderProps) {
       unsubscribeBookings();
       unsubscribePlaySignUps();
     };
-  }, []);
+  }, [toast]);
 
-
-  const clearAuthError = () => setAuthError(null);
 
   const login = async (email: string, pass: string) => {
     setIsLoading(true);
@@ -266,7 +264,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
       console.error("Valor inválido para courtType em addBooking:", courtTypeStr);
       throw new Error("Tipo da quadra inválido. Deve ser 'covered' ou 'uncovered'.");
     }
-
+    
     const generatedBookingId = doc(collection(db, RESERVAS_COLLECTION_NAME)).id;
 
     try {
@@ -297,7 +295,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
         courtType: courtTypeStr, 
         date: dateStr,
         time: timeStr,
-        ...(onBehalfOfName && { onBehalfOf: onBehalfOfName.trim() }), // Add onBehalfOf if provided
+        ...(onBehalfOfName && { onBehalfOf: onBehalfOfName.trim() }),
       };
       console.log(`Nenhum conflito encontrado (NÃO TRANSACIONAL). Tentando salvar nova reserva na coleção '${RESERVAS_COLLECTION_NAME}':`, bookingToSave);
       
@@ -315,7 +313,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
       const isTypeErrorWithPath = error instanceof TypeError && error.message.includes("Cannot read properties of undefined (reading 'path')");
       
       if (isTypeErrorWithPath) {
-        toastDescription = `Falha Crítica na Reserva (Erro Interno Firestore). Isso geralmente indica um ÍNDICE AUSENTE ou MAL CONFIGURADO para a coleção '${RESERVAS_COLLECTION_NAME}'. Verifique o console para um link de criação de índice ou crie manualmente (campos: courtId ASC, date ASC, time ASC; Escopo: Coleção).`;
+        toastDescription = `Falha Crítica na Reserva (Erro Interno Firestore). Isso geralmente indica um ÍNDICE AUSENTE ou MAL CONFIGURADO para a coleção '${RESERVAS_COLLECTION_NAME}'. Verifique o console para um link de criação de índice ou crie manualmente (campos: courtId ASC, date ASC, time ASC; Escopo: Coleção). Por favor, confirme se o índice está ATIVO.`;
         console.error("DETALHE DO ERRO 'TypeError reading path': Verifique se o índice (courtId ASC, date ASC, time ASC; Escopo: Coleção) existe e está ATIVO para a coleção: ", RESERVAS_COLLECTION_NAME);
       } else if (error.message && (error.message.toLowerCase().includes("index") || error.message.includes("FIRESTORE_INDEX_NEARBY") || (error.code === 'failed-precondition' && error.message.toLowerCase().includes("query requires an index")) )) {
         toastDescription = `Um índice necessário no Firestore para a coleção '${RESERVAS_COLLECTION_NAME}' está faltando ou incorreto. Verifique o console para um link para criá-lo (campos: courtId ASC, date ASC, time ASC; Escopo: Coleção).`;
@@ -370,7 +368,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
     }
   };
 
-  const updateBookingByAdmin = async (bookingId: string, newDate: string, newTime: string) => {
+  const updateBookingByAdmin = async (bookingId: string, newDate: string, newTime: string, newOnBehalfOfName?: string) => {
     if (!isAdmin) {
       toast({ variant: "destructive", title: "Não Autorizado", description: "Apenas administradores podem editar reservas." });
       return Promise.reject(new Error("Não autorizado."));
@@ -378,7 +376,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
     if (!/^\d{4}-\d{2}-\d{2}$/.test(newDate) || !/^\d{2}:\d{2}$/.test(newTime)) {
       throw new Error("Formato de data ou hora inválido para atualização.");
     }
-    console.log(`Admin updateBooking. ID: ${bookingId}, New Date: ${newDate}, New Time: ${newTime}`);
+    console.log(`Admin updateBooking. ID: ${bookingId}, New Date: ${newDate}, New Time: ${newTime}, New OnBehalfOf: ${newOnBehalfOfName}`);
 
     try {
       const bookingDocRef = doc(db, RESERVAS_COLLECTION_NAME, bookingId);
@@ -403,12 +401,19 @@ export function AuthProvider({ children }: AuthProviderProps) {
           throw new Error(`Este novo horário (${newDate} às ${newTime}) para a quadra ${existingBookingData.courtName} já está reservado.`);
         }
       }
-
-      await updateDoc(bookingDocRef, {
+      
+      const dataToUpdate: any = {
         date: newDate,
         time: newTime,
-      });
-      toast({ title: "Reserva Atualizada", description: `Reserva ID ${bookingId} atualizada pelo admin para ${newDate} às ${newTime}.` });
+      };
+
+      if (newOnBehalfOfName !== undefined) { // If newOnBehalfOfName was passed
+        dataToUpdate.onBehalfOf = newOnBehalfOfName.trim() || undefined; // Set to undefined if empty string, to remove field
+      }
+
+
+      await updateDoc(bookingDocRef, dataToUpdate);
+      toast({ title: "Reserva Atualizada", description: `Reserva ID ${bookingId} atualizada pelo admin.` });
     } catch (error: any) {
       console.error(`Erro ao atualizar reserva ID ${bookingId} pelo admin: `, error);
       toast({
@@ -509,7 +514,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
         router.push('/');
     }
 
-  }, [currentUser, isLoading, isAdmin, pathname, router]);
+  }, [currentUser, isLoading, isAdmin, pathname, router, toast]); // Added toast to dependency array
 
   return (
     <AuthContext.Provider value={{ 
@@ -536,7 +541,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
   );
 }
 
-function getFirebaseErrorMessage(errorCode: string): string {
+function getFirebaseErrorMessage(errorCode: string, defaultMessage: string = "Ocorreu um erro. Tente novamente."): string {
   switch (errorCode) {
     case "auth/invalid-email":
       return "O formato do email é inválido.";
@@ -556,7 +561,10 @@ function getFirebaseErrorMessage(errorCode: string): string {
        return "Credenciais inválidas. Verifique seu email e senha.";
     case "auth/missing-email":
         return "Por favor, insira seu endereço de email.";
+    case "permission-denied":
+        return "Permissão negada. Verifique as regras de segurança do Firestore e se você está autenticado com as permissões corretas.";
     default:
-      return "Ocorreu um erro de autenticação. Tente novamente.";
+      console.warn("Código de erro Firebase não mapeado:", errorCode);
+      return defaultMessage;
   }
 }

@@ -69,7 +69,7 @@ export interface AuthContextType {
   sendPasswordReset: (email: string) => Promise<void>;
   addBooking: (newBookingData: Omit<Booking, 'id' | 'userId' | 'userName' | 'onBehalfOf'>, onBehalfOfName?: string) => Promise<string>;
   cancelBooking: (bookingId: string) => Promise<void>;
-  updateBookingByAdmin: (bookingId: string, newDate: string, newTime: string) => Promise<void>;
+  updateBookingByAdmin: (bookingId: string, newDate: string, newTime: string, newOnBehalfOfName?: string) => Promise<void>;
   signUpForPlaySlot: (slotKey: string, date: string, userDetails: { userId: string, userName: string, userEmail: string }) => Promise<void>;
   cancelPlaySlotSignUp: (signUpId: string) => Promise<void>;
   isLoading: boolean;
