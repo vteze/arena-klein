@@ -3,12 +3,7 @@ import type { Court, PlaySlotConfig } from '@/lib/types';
 
 export const APP_NAME = "Arena Klein Beach Tennis";
 
-// Placeholder for Admin User UIDs. Replace with actual Firebase User UIDs.
-// For production, use custom claims or a more secure method.
-export const adminUserUids: string[] = [
-  "REPLACE_WITH_ACTUAL_ADMIN_UID_1",
-  // "REPLACE_WITH_ACTUAL_ADMIN_UID_2", 
-];
+// adminUserUids array foi removido. A verificação de admin agora é feita via coleção 'admins' no Firestore.
 
 export const courts: Court[] = [
   {

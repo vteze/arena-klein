@@ -25,21 +25,23 @@ import {
   deleteDoc,
   addDoc,
   getDocs,
-  getDoc, // Added for fetching single booking in cancelBooking
+  getDoc,
+  runTransaction,
   Timestamp,
 } from 'firebase/firestore';
 import { useToast } from "@/hooks/use-toast";
-import { maxParticipantsPerPlaySlot, adminUserUids } from '@/config/appConfig'; // Import adminUserUids
+import { maxParticipantsPerPlaySlot } from '@/config/appConfig';
 
 export const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 const USERS_COLLECTION_NAME = "users";
-const RESERVAS_COLLECTION_NAME = "reservas";
-const PLAY_SIGNUPS_COLLECTION_NAME = "playSignUps"; 
+const RESERVAS_COLLECTION_NAME = "reservas"; // Nome da coleção em português
+const PLAY_SIGNUPS_COLLECTION_NAME = "playSignUps";
+const ADMINS_COLLECTION_NAME = "admins"; // Nova coleção para administradores
 
 export function AuthProvider({ children }: AuthProviderProps) {
   const [currentUser, setCurrentUser] = useState<User | null>(null);
-  const [isAdmin, setIsAdmin] = useState(false); // New state for admin status
+  const [isAdmin, setIsAdmin] = useState(false);
   const [bookings, setBookings] = useState<Booking[]>([]);
   const [playSignUps, setPlaySignUps] = useState<PlaySignUp[]>([]); 
   const [isLoading, setIsLoading] = useState(true); 
@@ -49,7 +51,8 @@ export function AuthProvider({ children }: AuthProviderProps) {
   const { toast } = useToast();
 
   useEffect(() => {
-    const unsubscribeAuth = onAuthStateChanged(auth, (firebaseUser: FirebaseUser | null) => {
+    setIsLoading(true); // Garante que isLoading seja true no início de cada verificação de auth
+    const unsubscribeAuth = onAuthStateChanged(auth, async (firebaseUser: FirebaseUser | null) => {
       if (firebaseUser) {
         const user = {
           id: firebaseUser.uid,
@@ -57,14 +60,35 @@ export function AuthProvider({ children }: AuthProviderProps) {
           name: firebaseUser.displayName || firebaseUser.email?.split('@')[0] || "Usuário",
         };
         setCurrentUser(user);
-        setIsAdmin(adminUserUids.includes(user.id)); // Check if user is admin
+
+        // Verificar status de administrador
+        try {
+          const adminDocRef = doc(db, ADMINS_COLLECTION_NAME, firebaseUser.uid);
+          const adminDocSnap = await getDoc(adminDocRef);
+          if (adminDocSnap.exists()) {
+            setIsAdmin(true);
+            console.log(`User ${firebaseUser.uid} is an admin.`);
+          } else {
+            setIsAdmin(false);
+            console.log(`User ${firebaseUser.uid} is NOT an admin.`);
+          }
+        } catch (error) {
+          console.error("Error checking admin status:", error);
+          toast({
+            variant: "destructive",
+            title: "Erro ao Verificar Admin",
+            description: "Não foi possível verificar o status de administrador.",
+          });
+          setIsAdmin(false); // Default to not admin on error
+        }
       } else {
         setCurrentUser(null);
-        setIsAdmin(false); // Reset admin status on logout
+        setIsAdmin(false);
       }
-      setIsLoading(false);
+      setIsLoading(false); // Define isLoading como false após a autenticação e verificação de admin
     });
 
+    // Listener para Reservas
     const reservasColRef = collection(db, RESERVAS_COLLECTION_NAME); 
     const qReservas = query(reservasColRef); 
     const unsubscribeBookings = onSnapshot(qReservas, (querySnapshot) => {
@@ -78,11 +102,12 @@ export function AuthProvider({ children }: AuthProviderProps) {
       toast({ 
         variant: "destructive", 
         title: `Erro ao buscar reservas`,
-        description: `Não foi possível carregar os dados de todas as reservas. Verifique suas Regras de Segurança do Firestore para permitir leitura pública ('list') da coleção '${RESERVAS_COLLECTION_NAME}' e os logs do console para mais detalhes. Erro: ${error.message}`,
+        description: `Não foi possível carregar os dados de todas as reservas. Verifique suas Regras de Segurança do Firestore e os logs do console. Erro: ${error.message}`,
         duration: 10000
       });
     });
 
+    // Listener para PlaySignUps
     const playSignUpsColRef = collection(db, PLAY_SIGNUPS_COLLECTION_NAME);
     const qPlaySignUps = query(playSignUpsColRef); 
     const unsubscribePlaySignUps = onSnapshot(qPlaySignUps, (querySnapshot) => {
@@ -116,14 +141,13 @@ export function AuthProvider({ children }: AuthProviderProps) {
     setAuthError(null);
     try {
       await signInWithEmailAndPassword(auth, email, pass);
-      router.push('/');
+      router.push('/'); // Admin status will be checked by onAuthStateChanged
     } catch (error: any) {
       console.error("Login error:", error);
       const message = getFirebaseErrorMessage(error.code);
       setAuthError(message);
       toast({ variant: "destructive", title: "Falha no Login", description: message });
-    } finally {
-      setIsLoading(false);
+      setIsLoading(false); // Ensure loading is false on error
     }
   };
 
@@ -143,12 +167,12 @@ export function AuthProvider({ children }: AuthProviderProps) {
           createdAt: serverTimestamp(),
         });
 
+        // Admin status will be checked by onAuthStateChanged after signup/login
         setCurrentUser({ 
           id: userCredential.user.uid,
           email: userCredential.user.email || "",
           name: name,
         });
-        setIsAdmin(adminUserUids.includes(userCredential.user.uid));
       }
       router.push('/');
     } catch (error: any)      {
@@ -156,8 +180,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
       const message = getFirebaseErrorMessage(error.code);
       setAuthError(message);
       toast({ variant: "destructive", title: "Falha no Cadastro", description: message });
-    } finally {
-      setIsLoading(false);
+      setIsLoading(false); // Ensure loading is false on error
     }
   };
 
@@ -167,7 +190,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
     try {
       await signOut(auth);
       setCurrentUser(null);
-      setIsAdmin(false);
+      setIsAdmin(false); // Reset admin status on logout
       router.push('/login');
     } catch (error: any) {
       console.error("Logout error:", error);
@@ -175,21 +198,18 @@ export function AuthProvider({ children }: AuthProviderProps) {
       setAuthError(message);
       toast({ variant: "destructive", title: "Falha ao Sair", description: message });
     } finally {
-      setIsLoading(false);
+      // setIsLoading(false) will be handled by onAuthStateChanged triggering after signOut
     }
   };
   
-  // Para localizar o email de redefinição de senha (e outros emails do Firebase Auth) para português,
-  // você deve ir ao Console do Firebase > Authentication > Templates.
-  // Selecione "Password reset" e altere o idioma do template para "Português (pt)".
-  const sendPasswordReset = async (email: string) => {
-    setIsLoading(true);
+  const sendPasswordReset = async (emailAddress: string) => {
+    // setIsLoading(true); // Loading state is less critical here, but can be added
     setAuthError(null);
     try {
-      await sendPasswordResetEmail(auth, email);
+      await sendPasswordResetEmail(auth, emailAddress);
       toast({
         title: "Link de Redefinição Enviado",
-        description: `Se uma conta existir para ${email}, um email foi enviado com instruções para redefinir sua senha.`,
+        description: `Se uma conta existir para ${emailAddress}, um email foi enviado com instruções para redefinir sua senha.`,
         duration: 9000,
       });
     } catch (error: any) {
@@ -203,7 +223,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
         duration: 7000,
       });
     } finally {
-      setIsLoading(false);
+      // setIsLoading(false);
     }
   };
 
@@ -223,37 +243,21 @@ export function AuthProvider({ children }: AuthProviderProps) {
     const courtNameStr = String(newBookingData.courtName || '').trim();
     const courtTypeStr = newBookingData.courtType;
 
-    if (!courtIdStr || courtIdStr === 'undefined') {
-      const msg = "ID da quadra inválido fornecido para reserva.";
+    // Validações de entrada
+    if (!courtIdStr || !dateStr || !timeStr || !courtNameStr || !courtTypeStr) {
+      const msg = "Dados da reserva incompletos ou inválidos fornecidos.";
       console.error(msg, newBookingData);
       throw new Error(msg);
     }
-    if (!dateStr || !/^\d{4}-\d{2}-\d{2}$/.test(dateStr)) {
-      const msg = "Formato da data inválido para reserva. Use AAAA-MM-DD.";
-      console.error(msg, newBookingData);
-      throw new Error(msg);
-    }
-    if (!timeStr || !/^\d{2}:\d{2}$/.test(timeStr)) {
-      const msg = "Formato da hora inválido para reserva. Use HH:mm.";
-      console.error(msg, newBookingData);
-      throw new Error(msg);
-    }
-    if (!courtNameStr || courtNameStr === 'undefined') {
-      const msg = "Nome da quadra inválido fornecido para reserva.";
-      console.error(msg, newBookingData);
-      throw new Error(msg);
-    }
-     if (!courtTypeStr || (courtTypeStr !== 'covered' && courtTypeStr !== 'uncovered')) {
-        const msg = "Tipo da quadra inválido. Use 'covered' ou 'uncovered'.";
-        console.error(msg, newBookingData);
-        throw new Error(msg);
-    }
-    
-    const generatedBookingId = doc(collection(db, RESERVAS_COLLECTION_NAME)).id;
-    
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(dateStr)) throw new Error("Formato da data inválido. Use AAAA-MM-DD.");
+    if (!/^\d{2}:\d{2}$/.test(timeStr)) throw new Error("Formato da hora inválido. Use HH:mm.");
+    if (courtTypeStr !== 'covered' && courtTypeStr !== 'uncovered') throw new Error("Tipo da quadra inválido.");
+
+    const generatedBookingId = doc(collection(db, RESERVAS_COLLECTION_NAME)).id; // Gera ID no cliente
+
     try {
       const reservasColRef = collection(db, RESERVAS_COLLECTION_NAME);
-      console.log(`Verificando conflito (NÃO TRANSACIONAL) na coleção '${RESERVAS_COLLECTION_NAME}'. Critérios: courtId='${courtIdStr}', date='${dateStr}', time='${timeStr}'. GARANTA QUE O ÍNDICE (courtId ASC, date ASC, time ASC, Escopo: Coleção) EXISTE E ESTÁ ATIVO PARA A COLEÇÃO '${RESERVAS_COLLECTION_NAME}'.`);
+      console.log(`VERIFICAÇÃO DE CONFLITO (NÃO TRANSACIONAL) na coleção '${RESERVAS_COLLECTION_NAME}'. Critérios: courtId='${courtIdStr}', date='${dateStr}', time='${timeStr}'. GARANTA QUE O ÍNDICE (courtId ASC, date ASC, time ASC, Escopo: Coleção) EXISTE E ESTÁ ATIVO PARA A COLEÇÃO '${RESERVAS_COLLECTION_NAME}'.`);
       
       const conflictQuery = query(
         reservasColRef,
@@ -293,11 +297,11 @@ export function AuthProvider({ children }: AuthProviderProps) {
       
       let toastDescription = `Não foi possível processar sua reserva. Detalhe: ${error.message || 'Erro desconhecido.'}`;
       if (error.name === 'FirebaseError' && error.message && (error.message.toLowerCase().includes("index") || error.message.includes("FIRESTORE_INDEX_NEARBY") || (error.code === 'failed-precondition' && error.message.toLowerCase().includes("query requires an index")) )) {
-        toastDescription = `Um índice necessário no Firestore para a coleção '${RESERVAS_COLLECTION_NAME}' está faltando ou incorreto para a consulta de verificação de conflito. Verifique o console do servidor/navegador para um link para criá-lo ou crie-o manualmente (campos: courtId ASC, date ASC, time ASC na coleção '${RESERVAS_COLLECTION_NAME}' com escopo de 'Coleção').`;
+        toastDescription = `Um índice necessário no Firestore para a coleção '${RESERVAS_COLLECTION_NAME}' está faltando ou incorreto. Verifique o console para um link para criá-lo (campos: courtId ASC, date ASC, time ASC; Escopo: Coleção).`;
       } else if (error.message && error.message.includes("Este horário já foi reservado")) {
-        toastDescription = error.message;
+        // This specific error message is user-friendly enough
       } else if (error.name === 'TypeError' && error.message && error.message.includes("Cannot read properties of undefined (reading 'path')")) {
-        toastDescription = `Falha crítica na reserva (Erro Interno Firestore). Verifique se o índice da coleção '${RESERVAS_COLLECTION_NAME}' (campos: courtId ASC, date ASC, time ASC; Escopo: Coleção) está ATIVO e CORRETO. Consulte os logs do console para mais detalhes.`;
+        toastDescription = `Falha Crítica na Reserva (Erro Interno Firestore). VERIFIQUE O ÍNDICE da coleção '${RESERVAS_COLLECTION_NAME}' (campos: courtId ASC, date ASC, time ASC; Escopo: Coleção). Log da query no console do servidor.`;
       }
       
       toast({ 
@@ -326,7 +330,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
 
       const bookingData = bookingDocSnap.data() as Booking;
 
-      // Allow cancellation if user is admin OR if user is the owner of the booking
+      // Admin check or user is owner
       if (isAdmin || currentUser.id === bookingData.userId) {
         await deleteDoc(bookingDocRef);
         toast({
@@ -343,7 +347,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
         title: "Falha ao Cancelar",
         description: error.message || "Não foi possível cancelar a reserva.",
       });
-      throw error; // Re-throw para que o componente possa tratar se necessário
+      throw error;
     }
   };
 
@@ -415,15 +419,17 @@ export function AuthProvider({ children }: AuthProviderProps) {
 
   useEffect(() => {
     const protectedRoutes = ['/my-bookings']; 
+    // Adicionar verificação para /admin se for uma rota protegida
+    // if (isAdmin && pathname.startsWith('/admin') && !currentUser) router.push('/login');
     if (!isLoading && !currentUser && protectedRoutes.includes(pathname)) {
       router.push('/login');
     }
-  }, [currentUser, isLoading, pathname, router]);
+  }, [currentUser, isLoading, isAdmin, pathname, router]);
 
   return (
     <AuthContext.Provider value={{ 
       currentUser, 
-      isAdmin, // Provide isAdmin
+      isAdmin,
       bookings, 
       playSignUps, 
       login, 
