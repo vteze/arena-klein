@@ -1,7 +1,7 @@
 
 "use client";
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { ListChecks, CalendarClock, Users, Swords, CalendarDays } from "lucide-react";
@@ -9,7 +9,7 @@ import Link from "next/link";
 import { playSlotsConfig, numberOfWeeksToDisplayPlaySlots, maxParticipantsPerPlaySlot, type PlaySlotConfig } from '@/config/appConfig';
 import { PlaySlotDisplay } from '@/components/play/PlaySlotDisplay';
 import { useAuth } from '@/hooks/useAuth';
-import { format, nextDay, parseISO } from 'date-fns';
+import { format, parseISO, startOfDay, addDays, getDay, nextDay as dateFnsNextDay } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { Separator } from "@/components/ui/separator";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -23,41 +23,53 @@ interface PlaySlotInstance {
 }
 
 // Função para gerar as próximas N datas para um dia da semana específico
-const getNextOccurrences = (dayOfWeek: number, count: number): Array<{ date: string; displayDate: string }> => {
+const getNextOccurrences = (targetDayOfWeek: number, count: number): Array<{ date: string; displayDate: string }> => {
   const occurrences: Array<{ date: string; displayDate: string }> = [];
-  let currentDate = new Date();
-  currentDate.setHours(0,0,0,0); // Normalizar para o início do dia
+  let currentDate = startOfDay(new Date()); // Começa de hoje
+
+  // Ajusta currentDate para ser a primeira ocorrência (hoje ou no futuro)
+  // Se hoje NÃO é o targetDayOfWeek, avança para o próximo targetDayOfWeek
+  if (getDay(currentDate) !== targetDayOfWeek) {
+    currentDate = dateFnsNextDay(currentDate, targetDayOfWeek);
+  }
+  // Se hoje JÁ é o targetDayOfWeek, currentDate permanece como hoje (início do dia).
+  // O filtro principal de horário decidirá se a sessão de hoje ainda é válida.
 
   for (let i = 0; i < count; i++) {
-    const nextOccurrenceDate = nextDay(currentDate, dayOfWeek);
+    if (i > 0) { // Para ocorrências subsequentes, encontre a próxima
+      currentDate = dateFnsNextDay(currentDate, targetDayOfWeek);
+    }
     occurrences.push({
-      date: format(nextOccurrenceDate, 'yyyy-MM-dd'),
-      displayDate: format(nextOccurrenceDate, 'dd/MM', { locale: ptBR })
+      date: format(currentDate, 'yyyy-MM-dd'),
+      displayDate: format(currentDate, 'dd/MM', { locale: ptBR })
     });
-    currentDate = nextOccurrenceDate; 
   }
   return occurrences;
 };
 
+
 function PlayPage() {
   const { playSignUps, isLoading: authLoading } = useAuth();
   const [isClient, setIsClient] = useState(false);
-  const [chronologicallySortedPlaySlots, setChronologicallySortedPlaySlots] = useState<PlaySlotInstance[]>([]);
 
   useEffect(() => {
     setIsClient(true);
   }, []);
 
-  useEffect(() => {
-    const today = new Date();
-    today.setHours(0,0,0,0);
-
+  const chronologicallySortedPlaySlots = useMemo(() => {
+    const now = new Date(); // Hora atual no fuso horário do cliente
     const allUpcomingSlots: PlaySlotInstance[] = [];
 
     playSlotsConfig.forEach(slot => {
       const occurrences = getNextOccurrences(slot.dayOfWeek, numberOfWeeksToDisplayPlaySlots);
+      const startTime = slot.timeRange.split(' - ')[0]; // ex: "16:00"
+
       occurrences.forEach(occ => {
-        if (new Date(occ.date + 'T00:00:00') >= today) {
+        // occ.date é "YYYY-MM-DD"
+        const playSessionStartDateTime = new Date(`${occ.date}T${startTime}:00`);
+        // Este objeto Date está no fuso horário do cliente, interpretando a string como local.
+
+        if (now < playSessionStartDateTime) { // A sessão só é incluída se a hora atual for ANTES do início da sessão
           allUpcomingSlots.push({
             slotConfig: slot,
             date: occ.date,
@@ -68,12 +80,18 @@ function PlayPage() {
       });
     });
 
-    // Ordenar cronologicamente
-    allUpcomingSlots.sort((a, b) => parseISO(a.date).getTime() - parseISO(b.date).getTime());
+    // Ordenar cronologicamente com base na data e hora de início reais
+    allUpcomingSlots.sort((a, b) => {
+        const startTimeA = a.slotConfig.timeRange.split(' - ')[0];
+        const startTimeB = b.slotConfig.timeRange.split(' - ')[0];
+        const dateTimeA = new Date(`${a.date}T${startTimeA}:00`);
+        const dateTimeB = new Date(`${b.date}T${startTimeB}:00`);
+        return dateTimeA.getTime() - dateTimeB.getTime();
+    });
     
-    setChronologicallySortedPlaySlots(allUpcomingSlots);
+    return allUpcomingSlots;
 
-  }, [numberOfWeeksToDisplayPlaySlots]);
+  }, [playSignUps]); // Recalcula se playSignUps mudar (indicando potencial mudança de estado ou re-render)
 
 
   return (
@@ -86,7 +104,7 @@ function PlayPage() {
           </h1>
         </div>
         <p className="text-lg text-foreground/70 max-w-3xl mx-auto">
-          Junte-se às nossas sessões "Play"! Horários fixos, vagas limitadas ({maxParticipantsPerPlaySlot} por sessão), muita diversão e a chance de conhecer novos parceiros de jogo. Inscreva-se individualmente e garanta sua partida. As sessões "Play" utilizam ambas as quadras.
+          Junte-se às nossas sessões "Play"! Horários fixos ({playSlotsConfig.map(s => s.label.split(' ')[1]).join('/')} das {playSlotsConfig[0].timeRange}), vagas limitadas ({maxParticipantsPerPlaySlot} por sessão), muita diversão e a chance de conhecer novos parceiros de jogo. As sessões "Play" utilizam ambas as quadras. Inscreva-se individualmente e garanta sua partida.
         </p>
       </header>
 
@@ -107,8 +125,8 @@ function PlayPage() {
               <PlaySlotDisplay
                 key={slotInstance.uniqueKey}
                 slotConfig={slotInstance.slotConfig}
-                date={slotInstance.date}
-                displayDate={slotInstance.displayDate}
+                date={slotInstance.date} // YYYY-MM-DD
+                displayDate={slotInstance.displayDate} // DD/MM
                 allSignUps={playSignUps}
               />
             ))}
@@ -139,7 +157,7 @@ function PlayPage() {
            <div>
             <h3 className="font-semibold text-primary mb-1">Agenda e Horários Fixos</h3>
             <p>
-              As sessões "Play" acontecem em horários fixos: Sextas, Sábados e Domingos, das 16:00 às 20:00. Veja as datas disponíveis acima e inscreva-se!
+              As sessões "Play" acontecem em horários fixos: {playSlotsConfig.map(s => s.label.split(' ')[1].replace('!!','')).join(', ')}, das {playSlotsConfig[0].timeRange}. Veja as datas disponíveis acima e inscreva-se!
             </p>
           </div>
           <div>
@@ -157,7 +175,7 @@ function PlayPage() {
           <div>
             <h3 className="font-semibold text-primary mb-1">Exclusividade dos Horários</h3>
             <p>
-              Os horários dedicados às sessões "Play" (Sexta, Sábado e Domingo, das 16:00 às 20:00) são exclusivos para esta modalidade. Durante esses períodos, ambas as quadras da arena são reservadas para o "Play" e não estarão disponíveis para aluguel avulso, garantindo o espaço para os participantes inscritos.
+               Os horários dedicados às sessões "Play" ({playSlotsConfig.map(s => s.label.split(' ')[1].replace('!!','')).join(', ')}, das {playSlotsConfig[0].timeRange}) são exclusivos para esta modalidade. Durante esses períodos, ambas as quadras da arena são reservadas para o "Play" e não estarão disponíveis para aluguel avulso, garantindo o espaço para os participantes inscritos.
             </p>
           </div>
         </CardContent>
