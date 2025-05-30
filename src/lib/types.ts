@@ -16,8 +16,9 @@ export interface Court {
 
 export interface Booking {
   id: string;
-  userId: string;
-  userName: string;
+  userId: string; // UID of the user who made the booking (could be an admin)
+  userName: string; // Name of the user who made the booking (could be an admin)
+  onBehalfOf?: string; // Optional: Name of the person this booking is for, if admin booked it
   courtId: string;
   courtName: string;
   courtType: 'covered' | 'uncovered';
@@ -50,18 +51,23 @@ export interface PlaySignUp {
 
 
 import type { ReactNode } from 'react';
+import type { personalizedBookingConfirmation, PersonalizedBookingConfirmationInput as AIInputType } from '@/ai/flows/booking-confirmation'; // Adjusted import
+
+// Re-export AI types if they are defined in the AI flow file
+export type PersonalizedBookingConfirmationInput = AIInputType;
+
 
 export interface AuthContextType {
   currentUser: User | null;
   isAdmin: boolean;
   bookings: Booking[];
   playSignUps: PlaySignUp[];
-  totalUsers: number; // Added for total user count
+  totalUsers: number;
   login: (email: string, pass: string) => Promise<void>;
   signUp: (name: string, email: string, pass: string) => Promise<void>;
   logout: () => Promise<void>;
   sendPasswordReset: (email: string) => Promise<void>;
-  addBooking: (newBooking: Omit<Booking, 'id' | 'userId' | 'userName'>) => Promise<string>;
+  addBooking: (newBookingData: Omit<Booking, 'id' | 'userId' | 'userName' | 'onBehalfOf'>, onBehalfOfName?: string) => Promise<string>;
   cancelBooking: (bookingId: string) => Promise<void>;
   updateBookingByAdmin: (bookingId: string, newDate: string, newTime: string) => Promise<void>;
   signUpForPlaySlot: (slotKey: string, date: string, userDetails: { userId: string, userName: string, userEmail: string }) => Promise<void>;
@@ -74,3 +80,4 @@ export interface AuthContextType {
 export interface AuthProviderProps {
   children: ReactNode;
 }
+

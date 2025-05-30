@@ -28,7 +28,7 @@ import {
   getDoc,
   updateDoc,
   Timestamp,
-  runTransaction,
+  // runTransaction, // Removido runTransaction
 } from 'firebase/firestore';
 import { useToast } from "@/hooks/use-toast";
 import { maxParticipantsPerPlaySlot } from '@/config/appConfig';
@@ -36,7 +36,7 @@ import { maxParticipantsPerPlaySlot } from '@/config/appConfig';
 export const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 const USERS_COLLECTION_NAME = "users";
-const RESERVAS_COLLECTION_NAME = "reservas";
+const RESERVAS_COLLECTION_NAME = "reservas"; // Alterado para "reservas"
 const PLAY_SIGNUPS_COLLECTION_NAME = "playSignUps";
 const ADMINS_COLLECTION_NAME = "admins";
 
@@ -45,7 +45,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
   const [isAdmin, setIsAdmin] = useState(false);
   const [bookings, setBookings] = useState<Booking[]>([]);
   const [playSignUps, setPlaySignUps] = useState<PlaySignUp[]>([]); 
-  const [totalUsers, setTotalUsers] = useState<number>(0); // New state for total users
+  const [totalUsers, setTotalUsers] = useState<number>(0);
   const [isLoading, setIsLoading] = useState(true); 
   const [authError, setAuthError] = useState<string | null>(null);
   const router = useRouter();
@@ -100,8 +100,8 @@ export function AuthProvider({ children }: AuthProviderProps) {
           toast({
             variant: "destructive",
             title: "Erro ao Verificar Admin",
-            description: `Não foi possível verificar o status de administrador. Verifique as regras do Firestore e a conexão. Erro: ${error.message}`,
-            duration: 7000,
+            description: `Não foi possível verificar o status de administrador devido a: ${error.message}. Verifique as regras do Firestore e a conexão.`,
+            duration: 9000,
           });
           setIsAdmin(false);
           setTotalUsers(0);
@@ -115,7 +115,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
     });
 
     const reservasColRef = collection(db, RESERVAS_COLLECTION_NAME);
-    const qReservas = query(reservasColRef); // Fetch all bookings for admin dashboard and availability
+    const qReservas = query(reservasColRef); 
     const unsubscribeBookings = onSnapshot(qReservas, (querySnapshot) => {
       const allBookings: Booking[] = [];
       querySnapshot.forEach((docSnap) => {
@@ -155,7 +155,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
       unsubscribeBookings();
       unsubscribePlaySignUps();
     };
-  }, []); // toast was removed as a dependency as it should be stable
+  }, []);
 
 
   const clearAuthError = () => setAuthError(null);
@@ -239,8 +239,11 @@ export function AuthProvider({ children }: AuthProviderProps) {
     }
   };
 
-  const addBooking = async (newBookingData: Omit<Booking, 'id' | 'userId' | 'userName'>): Promise<string> => {
-    console.log(`addBooking (para coleção '${RESERVAS_COLLECTION_NAME}') chamada com newBookingData:`, JSON.stringify(newBookingData));
+  const addBooking = async (
+    newBookingData: Omit<Booking, 'id' | 'userId' | 'userName' | 'onBehalfOf'>,
+    onBehalfOfName?: string
+  ): Promise<string> => {
+    console.log(`addBooking (para coleção '${RESERVAS_COLLECTION_NAME}') chamada com newBookingData:`, JSON.stringify(newBookingData), "On behalf of:", onBehalfOfName);
     
     if (!currentUser) {
       const errMsg = "Você precisa estar logado para fazer uma reserva.";
@@ -249,7 +252,6 @@ export function AuthProvider({ children }: AuthProviderProps) {
       return Promise.reject(new Error(errMsg));
     }
 
-    // Explicitly cast and validate inputs
     const courtIdStr = String(newBookingData.courtId || '').trim();
     const dateStr = String(newBookingData.date || '').trim();
     const timeStr = String(newBookingData.time || '').trim();
@@ -264,7 +266,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
       console.error("Valor inválido para courtType em addBooking:", courtTypeStr);
       throw new Error("Tipo da quadra inválido. Deve ser 'covered' ou 'uncovered'.");
     }
-    
+
     const generatedBookingId = doc(collection(db, RESERVAS_COLLECTION_NAME)).id;
 
     try {
@@ -277,7 +279,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
         where("date", "==", dateStr),
         where("time", "==", timeStr)
       );
-      console.log("Objeto da Query de Conflito:", conflictQuery); // Log the query object itself
+      console.log("Objeto da Query de Conflito:", conflictQuery);
       
       const conflictSnapshot = await getDocs(conflictQuery);
       
@@ -295,6 +297,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
         courtType: courtTypeStr, 
         date: dateStr,
         time: timeStr,
+        ...(onBehalfOfName && { onBehalfOf: onBehalfOfName.trim() }), // Add onBehalfOf if provided
       };
       console.log(`Nenhum conflito encontrado (NÃO TRANSACIONAL). Tentando salvar nova reserva na coleção '${RESERVAS_COLLECTION_NAME}':`, bookingToSave);
       
@@ -326,9 +329,10 @@ export function AuthProvider({ children }: AuthProviderProps) {
         description: toastDescription,
         duration: 12000 
       });
-      throw error; // Re-throw para que o BookingConfirmationDialog possa tratar também
+      throw error; 
     }
   };
+
 
   const cancelBooking = async (bookingId: string) => {
     if (!currentUser) {
@@ -346,7 +350,6 @@ export function AuthProvider({ children }: AuthProviderProps) {
 
       const bookingData = bookingDocSnap.data() as Booking;
 
-      // Admin can cancel any booking, user can cancel their own
       if (isAdmin || currentUser.id === bookingData.userId) {
         await deleteDoc(bookingDocRef);
         toast({

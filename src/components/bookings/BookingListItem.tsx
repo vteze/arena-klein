@@ -5,12 +5,12 @@ import { useState } from 'react';
 import type { Booking } from '@/lib/types';
 import { Card, CardContent, CardHeader, CardTitle, CardFooter } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { CalendarDays, Clock, ShieldCheck, Sun, Trash2, User, Edit3Icon } from 'lucide-react';
+import { CalendarDays, Clock, ShieldCheck, Sun, Trash2, User, Edit3Icon, Users } from 'lucide-react'; // Added Users
 import { format, parseISO } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { BookingCancellationDialog } from './BookingCancellationDialog';
-import { EditBookingDialog } from './EditBookingDialog'; // New
-import { useAuth } from '@/hooks/useAuth'; // New
+import { EditBookingDialog } from './EditBookingDialog'; 
+import { useAuth } from '@/hooks/useAuth'; 
 
 interface BookingListItemProps {
   booking: Booking;
@@ -18,16 +18,18 @@ interface BookingListItemProps {
 }
 
 export function BookingListItem({ booking, showUserName = false }: BookingListItemProps) {
-  const { isAdmin } = useAuth(); // New
+  const { isAdmin } = useAuth(); 
   const [isCancelDialogOpen, setIsCancelDialogOpen] = useState(false);
-  const [isEditDialogOpen, setIsEditDialogOpen] = useState(false); // New
+  const [isEditDialogOpen, setIsEditDialogOpen] = useState(false); 
   const bookingDate = parseISO(booking.date);
 
-  // Callback to close edit dialog, could also trigger a re-fetch or list update if needed
   const handleBookingUpdated = () => {
     setIsEditDialogOpen(false);
-    // Potentially trigger a refresh of bookings if not handled by global state listener
   };
+
+  const displayUserName = booking.onBehalfOf ? 
+    `${booking.onBehalfOf} (por: ${booking.userName})` : 
+    booking.userName;
 
   return (
     <>
@@ -43,8 +45,8 @@ export function BookingListItem({ booking, showUserName = false }: BookingListIt
             </CardTitle>
              {showUserName && booking.userName && (
               <p className="text-xs text-muted-foreground flex items-center mt-1">
-                <User className="mr-1 h-3 w-3" />
-                {booking.userName}
+                {booking.onBehalfOf ? <Users className="mr-1 h-3 w-3" /> : <User className="mr-1 h-3 w-3" />}
+                {displayUserName}
               </p>
             )}
           </CardHeader>
@@ -61,7 +63,7 @@ export function BookingListItem({ booking, showUserName = false }: BookingListIt
           </CardContent>
         </div>
         <CardFooter className="pt-4 flex justify-end gap-2">
-          {isAdmin && ( // New: Edit button for admins
+          {isAdmin && ( 
             <Button
               variant="outline"
               size="sm"
@@ -90,7 +92,7 @@ export function BookingListItem({ booking, showUserName = false }: BookingListIt
           booking={booking}
         />
       )}
-      {isAdmin && isEditDialogOpen && ( // New: Render EditBookingDialog for admins
+      {isAdmin && isEditDialogOpen && ( 
         <EditBookingDialog
           isOpen={isEditDialogOpen}
           onOpenChange={setIsEditDialogOpen}
