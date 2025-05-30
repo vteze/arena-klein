@@ -45,7 +45,7 @@ export default function AdminDashboardPage() {
   const filteredBookings = useMemo(() => {
     if (!startDate || !endDate) return bookings;
     const start = startOfDay(startDate);
-    const end = startOfDay(endDate); // Ensure end of day for inclusive range if needed, but startOfDay is fine for yyyy-MM-dd matching
+    const end = startOfDay(endDate); 
     return bookings.filter(b => {
       try {
         const bookingDate = parseISO(b.date);
@@ -99,7 +99,7 @@ export default function AdminDashboardPage() {
   
   const dateRangeLabel = useMemo(() => {
     if (startDate && endDate) {
-      return `${format(startDate, "dd/MM/yy")} - ${format(endDate, "dd/MM/yy")}`;
+      return `${format(startDate, "dd/MM/yy", { locale: ptBR })} - ${format(endDate, "dd/MM/yy", { locale: ptBR })}`;
     }
     return "Últimos 7 dias";
   }, [startDate, endDate]);
@@ -140,7 +140,7 @@ export default function AdminDashboardPage() {
     );
   }
 
-  if (!isAdmin) { // This check ensures that if not admin, we return early. Hooks above are fine.
+  if (!isAdmin) { 
     return (
       <div className="flex flex-col items-center justify-center min-h-[calc(100vh-10rem)]">
         <ShieldAlert className="h-16 w-16 text-destructive mb-4" />
@@ -152,7 +152,6 @@ export default function AdminDashboardPage() {
   
   const chartPrimaryFill = "hsl(var(--primary))"; 
   const chartAccentFill = "hsl(var(--accent))";
-  // const chartSecondaryFill = "hsl(var(--secondary-foreground))"; // Example for another color
 
   return (
     <div className="space-y-8 p-4 sm:p-6 md:p-8">
@@ -236,7 +235,6 @@ export default function AdminDashboardPage() {
                 mode="single"
                 selected={startDate}
                 onSelect={setStartDate}
-                initialFocus
                 locale={ptBR}
                 disabled={(date) => date > (endDate || new Date()) || date < new Date("2000-01-01")}
               />
@@ -261,7 +259,6 @@ export default function AdminDashboardPage() {
                 mode="single"
                 selected={endDate}
                 onSelect={setEndDate}
-                initialFocus
                 locale={ptBR}
                 disabled={(date) => date < (startDate || new Date("1900-01-01")) || date > new Date()}
               />
@@ -366,5 +363,3 @@ export default function AdminDashboardPage() {
     </div>
   );
 }
-
-    
