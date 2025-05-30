@@ -31,7 +31,6 @@ export default function AdminDashboardPage() {
   const [startDate, setStartDate] = useState<Date | undefined>(subDays(new Date(), 6));
   const [endDate, setEndDate] = useState<Date | undefined>(new Date());
 
-  // ALL HOOKS MUST BE CALLED AT THE TOP LEVEL
   const totalBookings = useMemo(() => bookings.length, [bookings]);
   const totalPlaySignUpsCount = useMemo(() => playSignUps.length, [playSignUps]);
 
@@ -236,7 +235,10 @@ export default function AdminDashboardPage() {
                 selected={startDate}
                 onSelect={setStartDate}
                 locale={ptBR}
-                disabled={(date) => date > (endDate || new Date()) || date < new Date("2000-01-01")}
+                disabled={(date) => 
+                  (endDate ? date > endDate : false) || 
+                  date < new Date("2000-01-01")
+                }
               />
             </PopoverContent>
           </Popover>
@@ -260,7 +262,10 @@ export default function AdminDashboardPage() {
                 selected={endDate}
                 onSelect={setEndDate}
                 locale={ptBR}
-                disabled={(date) => date < (startDate || new Date("1900-01-01")) || date > new Date()}
+                disabled={(date) =>
+                  (startDate ? date < startDate : false) ||
+                  date < new Date("1900-01-01") // Only very old dates as lower bound
+                }
               />
             </PopoverContent>
           </Popover>
