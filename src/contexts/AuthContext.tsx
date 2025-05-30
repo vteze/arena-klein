@@ -26,8 +26,9 @@ import {
   addDoc,
   getDocs,
   getDoc,
-  updateDoc, // Added for updateBookingByAdmin
+  updateDoc,
   Timestamp,
+  runTransaction,
 } from 'firebase/firestore';
 import { useToast } from "@/hooks/use-toast";
 import { maxParticipantsPerPlaySlot } from '@/config/appConfig';
@@ -44,6 +45,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
   const [isAdmin, setIsAdmin] = useState(false);
   const [bookings, setBookings] = useState<Booking[]>([]);
   const [playSignUps, setPlaySignUps] = useState<PlaySignUp[]>([]); 
+  const [totalUsers, setTotalUsers] = useState<number>(0); // New state for total users
   const [isLoading, setIsLoading] = useState(true); 
   const [authError, setAuthError] = useState<string | null>(null);
   const router = useRouter();
@@ -74,8 +76,23 @@ export function AuthProvider({ children }: AuthProviderProps) {
           if (adminDocSnap.exists()) {
             setIsAdmin(true);
             console.log(`User ${firebaseUser.uid} is an admin.`);
+            // Fetch total users if admin
+            try {
+              const usersCollectionRef = collection(db, USERS_COLLECTION_NAME);
+              const usersSnapshot = await getDocs(usersCollectionRef);
+              setTotalUsers(usersSnapshot.size);
+            } catch (usersError: any) {
+              console.error("Error fetching total users:", usersError);
+              toast({
+                variant: "destructive",
+                title: "Erro ao Buscar Usuários",
+                description: `Não foi possível carregar o total de usuários. Erro: ${usersError.message}`,
+                duration: 7000,
+              });
+            }
           } else {
             setIsAdmin(false);
+            setTotalUsers(0); // Reset if not admin
             console.log(`User ${firebaseUser.uid} is NOT an admin.`);
           }
         } catch (error: any) {
@@ -87,20 +104,22 @@ export function AuthProvider({ children }: AuthProviderProps) {
             duration: 7000,
           });
           setIsAdmin(false);
+          setTotalUsers(0);
         }
       } else {
         setCurrentUser(null);
         setIsAdmin(false);
+        setTotalUsers(0);
       }
       setIsLoading(false);
     });
 
     const reservasColRef = collection(db, RESERVAS_COLLECTION_NAME);
-    const qReservas = query(reservasColRef);
+    const qReservas = query(reservasColRef); // Fetch all bookings for admin dashboard and availability
     const unsubscribeBookings = onSnapshot(qReservas, (querySnapshot) => {
       const allBookings: Booking[] = [];
-      querySnapshot.forEach((doc) => {
-        allBookings.push({ id: doc.id, ...doc.data() } as Booking);
+      querySnapshot.forEach((docSnap) => {
+        allBookings.push({ id: docSnap.id, ...docSnap.data() } as Booking);
       });
       setBookings(allBookings);
     }, (error: any) => {
@@ -117,8 +136,8 @@ export function AuthProvider({ children }: AuthProviderProps) {
     const qPlaySignUps = query(playSignUpsColRef);
     const unsubscribePlaySignUps = onSnapshot(qPlaySignUps, (querySnapshot) => {
       const allSignUps: PlaySignUp[] = [];
-      querySnapshot.forEach((doc) => {
-        allSignUps.push({ id: doc.id, ...doc.data() } as PlaySignUp);
+      querySnapshot.forEach((docSnap) => {
+        allSignUps.push({ id: docSnap.id, ...docSnap.data() } as PlaySignUp);
       });
       setPlaySignUps(allSignUps);
     }, (error) => {
@@ -136,7 +155,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
       unsubscribeBookings();
       unsubscribePlaySignUps();
     };
-  }, []);
+  }, []); // toast was removed as a dependency as it should be stable
 
 
   const clearAuthError = () => setAuthError(null);
@@ -222,7 +241,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
 
   const addBooking = async (newBookingData: Omit<Booking, 'id' | 'userId' | 'userName'>): Promise<string> => {
     console.log(`addBooking (para coleção '${RESERVAS_COLLECTION_NAME}') chamada com newBookingData:`, JSON.stringify(newBookingData));
-
+    
     if (!currentUser) {
       const errMsg = "Você precisa estar logado para fazer uma reserva.";
       toast({ variant: "destructive", title: "Não Autenticado", description: errMsg });
@@ -230,6 +249,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
       return Promise.reject(new Error(errMsg));
     }
 
+    // Explicitly cast and validate inputs
     const courtIdStr = String(newBookingData.courtId || '').trim();
     const dateStr = String(newBookingData.date || '').trim();
     const timeStr = String(newBookingData.time || '').trim();
@@ -241,7 +261,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
     if (!/^\d{2}:\d{2}$/.test(timeStr)) throw new Error("Formato da hora inválido. Use HH:mm.");
     if (!courtNameStr) throw new Error("Nome da quadra inválido.");
     if (courtTypeStr !== 'covered' && courtTypeStr !== 'uncovered') {
-      console.error("Valor inválido para courtType:", courtTypeStr);
+      console.error("Valor inválido para courtType em addBooking:", courtTypeStr);
       throw new Error("Tipo da quadra inválido. Deve ser 'covered' ou 'uncovered'.");
     }
     
@@ -249,7 +269,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
 
     try {
       const reservasColRef = collection(db, RESERVAS_COLLECTION_NAME);
-      console.log(`VERIFICAÇÃO DE CONFLITO (NÃO TRANSACIONAL) na coleção '${RESERVAS_COLLECTION_NAME}'. Critérios: courtId='${courtIdStr}', date='${dateStr}', time='${timeStr}'. GARANTA QUE O ÍNDICE (courtId ASC, date ASC, time ASC, Escopo: Coleção) EXISTE E ESTÁ ATIVO PARA A COLEÇÃO '${RESERVAS_COLLECTION_NAME}'.`);
+      console.log(`Verificando conflito (NÃO TRANSACIONAL) na coleção '${RESERVAS_COLLECTION_NAME}'. Critérios: courtId='${courtIdStr}', date='${dateStr}', time='${timeStr}'. GARANTA QUE O ÍNDICE (courtId ASC, date ASC, time ASC, Escopo: Coleção) EXISTE E ESTÁ ATIVO PARA A COLEÇÃO '${RESERVAS_COLLECTION_NAME}'.`);
       
       const conflictQuery = query(
         reservasColRef,
@@ -257,6 +277,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
         where("date", "==", dateStr),
         where("time", "==", timeStr)
       );
+      console.log("Objeto da Query de Conflito:", conflictQuery); // Log the query object itself
       
       const conflictSnapshot = await getDocs(conflictQuery);
       
@@ -288,10 +309,13 @@ export function AuthProvider({ children }: AuthProviderProps) {
       );
       
       let toastDescription = `Não foi possível processar sua reserva. Detalhe: ${error.message || 'Erro desconhecido.'}`;
-      if (error.message && (error.message.toLowerCase().includes("index") || error.message.includes("FIRESTORE_INDEX_NEARBY") || (error.code === 'failed-precondition' && error.message.toLowerCase().includes("query requires an index")) )) {
+      const isTypeErrorWithPath = error instanceof TypeError && error.message.includes("Cannot read properties of undefined (reading 'path')");
+      
+      if (isTypeErrorWithPath) {
+        toastDescription = `Falha Crítica na Reserva (Erro Interno Firestore). Isso geralmente indica um ÍNDICE AUSENTE ou MAL CONFIGURADO para a coleção '${RESERVAS_COLLECTION_NAME}'. Verifique o console para um link de criação de índice ou crie manualmente (campos: courtId ASC, date ASC, time ASC; Escopo: Coleção).`;
+        console.error("DETALHE DO ERRO 'TypeError reading path': Verifique se o índice (courtId ASC, date ASC, time ASC; Escopo: Coleção) existe e está ATIVO para a coleção: ", RESERVAS_COLLECTION_NAME);
+      } else if (error.message && (error.message.toLowerCase().includes("index") || error.message.includes("FIRESTORE_INDEX_NEARBY") || (error.code === 'failed-precondition' && error.message.toLowerCase().includes("query requires an index")) )) {
         toastDescription = `Um índice necessário no Firestore para a coleção '${RESERVAS_COLLECTION_NAME}' está faltando ou incorreto. Verifique o console para um link para criá-lo (campos: courtId ASC, date ASC, time ASC; Escopo: Coleção).`;
-      } else if (error.name === 'TypeError' && error.message && error.message.includes("Cannot read properties of undefined (reading 'path')")) {
-        toastDescription = `Falha Crítica na Reserva (Erro Interno Firestore). VERIFIQUE O ÍNDICE da coleção '${RESERVAS_COLLECTION_NAME}' (campos: courtId ASC, date ASC, time ASC; Escopo: Coleção). A consulta que falhou pode ser 'conflictQuery' dentro de addBooking.`;
       } else if (error.message && error.message.includes("Este horário já foi reservado")) {
          // This specific error message is user-friendly enough
       }
@@ -300,9 +324,9 @@ export function AuthProvider({ children }: AuthProviderProps) {
         variant: "destructive", 
         title: "Falha na Reserva", 
         description: toastDescription,
-        duration: 10000 
+        duration: 12000 
       });
-      throw error;
+      throw error; // Re-throw para que o BookingConfirmationDialog possa tratar também
     }
   };
 
@@ -349,19 +373,20 @@ export function AuthProvider({ children }: AuthProviderProps) {
       return Promise.reject(new Error("Não autorizado."));
     }
     if (!/^\d{4}-\d{2}-\d{2}$/.test(newDate) || !/^\d{2}:\d{2}$/.test(newTime)) {
-      throw new Error("Formato de data ou hora inválido.");
+      throw new Error("Formato de data ou hora inválido para atualização.");
     }
+    console.log(`Admin updateBooking. ID: ${bookingId}, New Date: ${newDate}, New Time: ${newTime}`);
 
     try {
       const bookingDocRef = doc(db, RESERVAS_COLLECTION_NAME, bookingId);
       const bookingSnap = await getDoc(bookingDocRef);
       if (!bookingSnap.exists()) {
-        throw new Error("Reserva original não encontrada para edição.");
+        throw new Error("Reserva original não encontrada para edição pelo admin.");
       }
       const existingBookingData = bookingSnap.data() as Booking;
-      const courtIdToUpdate = existingBookingData.courtId; // Admin edits date/time for the same court
+      const courtIdToUpdate = existingBookingData.courtId; 
 
-      // Check for conflict at the new date/time, excluding the current booking being edited
+      console.log(`Verificando conflito para atualização (Admin). Coleção: '${RESERVAS_COLLECTION_NAME}', CourtId: ${courtIdToUpdate}, NewDate: ${newDate}, NewTime: ${newTime}. Excluindo ID: ${bookingId}`);
       const conflictQuery = query(
         collection(db, RESERVAS_COLLECTION_NAME),
         where("courtId", "==", courtIdToUpdate),
@@ -370,10 +395,9 @@ export function AuthProvider({ children }: AuthProviderProps) {
       );
       const conflictSnapshot = await getDocs(conflictQuery);
       if (!conflictSnapshot.empty) {
-        // Check if the conflict is with the booking itself (no real conflict if it's the same booking)
         const conflictingBooking = conflictSnapshot.docs.find(d => d.id !== bookingId);
         if (conflictingBooking) {
-          throw new Error(`Este novo horário (${newDate} às ${newTime}) já está reservado por outra pessoa.`);
+          throw new Error(`Este novo horário (${newDate} às ${newTime}) para a quadra ${existingBookingData.courtName} já está reservado.`);
         }
       }
 
@@ -381,13 +405,14 @@ export function AuthProvider({ children }: AuthProviderProps) {
         date: newDate,
         time: newTime,
       });
-      toast({ title: "Reserva Atualizada", description: `Reserva ID ${bookingId} atualizada para ${newDate} às ${newTime}.` });
+      toast({ title: "Reserva Atualizada", description: `Reserva ID ${bookingId} atualizada pelo admin para ${newDate} às ${newTime}.` });
     } catch (error: any) {
       console.error(`Erro ao atualizar reserva ID ${bookingId} pelo admin: `, error);
       toast({
         variant: "destructive",
-        title: "Falha ao Atualizar Reserva",
+        title: "Falha ao Atualizar Reserva (Admin)",
         description: error.message || "Não foi possível atualizar a reserva.",
+        duration: 9000,
       });
       throw error;
     }
@@ -436,7 +461,8 @@ export function AuthProvider({ children }: AuthProviderProps) {
       await addDoc(collection(db, PLAY_SIGNUPS_COLLECTION_NAME), newSignUpData);
       toast({ title: "Inscrição Confirmada!", description: `Você foi inscrito para o Play em ${date}.` });
 
-    } catch (error: any) {
+    } catch (error: any)
+{
       console.error(`Erro ao inscrever-se no Play para slot ${slotKey} em ${date}: `, error);
       toast({ variant: "destructive", title: "Falha na Inscrição do Play", description: error.message || "Ocorreu um erro ao tentar se inscrever." });
       throw error;
@@ -450,15 +476,12 @@ export function AuthProvider({ children }: AuthProviderProps) {
       return Promise.reject(new Error("Usuário não autenticado."));
     }
     try {
-      // For admin, they can cancel any. For users, they can only cancel their own.
-      // The Firestore rules will enforce this.
       const signUpDocRef = doc(db, PLAY_SIGNUPS_COLLECTION_NAME, signUpId);
       const signUpDoc = await getDoc(signUpDocRef);
       if (!signUpDoc.exists()) {
           throw new Error("Inscrição não encontrada.");
       }
       
-      // If current user is admin, or if the signUp belongs to the current user
       if (isAdmin || signUpDoc.data()?.userId === currentUser.id) {
           await deleteDoc(signUpDocRef);
           toast({ title: "Inscrição Cancelada", description: "A inscrição no Play foi cancelada." });
@@ -474,11 +497,10 @@ export function AuthProvider({ children }: AuthProviderProps) {
   };
 
   useEffect(() => {
-    const protectedRoutes = ['/my-bookings', '/admin']; // '/admin' could be added here
+    const protectedRoutes = ['/my-bookings', '/admin']; 
     if (!isLoading && !currentUser && protectedRoutes.includes(pathname)) {
       router.push('/login');
     }
-    // Further admin-only route protection could be added here
     if (!isLoading && currentUser && !isAdmin && pathname === '/admin') {
         toast({variant: "destructive", title: "Acesso Negado", description: "Você não tem permissão para acessar esta página."});
         router.push('/');
@@ -492,6 +514,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
       isAdmin,
       bookings, 
       playSignUps, 
+      totalUsers,
       login, 
       signUp, 
       logout, 

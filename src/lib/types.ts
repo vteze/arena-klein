@@ -56,13 +56,14 @@ export interface AuthContextType {
   isAdmin: boolean;
   bookings: Booking[];
   playSignUps: PlaySignUp[];
+  totalUsers: number; // Added for total user count
   login: (email: string, pass: string) => Promise<void>;
   signUp: (name: string, email: string, pass: string) => Promise<void>;
   logout: () => Promise<void>;
   sendPasswordReset: (email: string) => Promise<void>;
   addBooking: (newBooking: Omit<Booking, 'id' | 'userId' | 'userName'>) => Promise<string>;
   cancelBooking: (bookingId: string) => Promise<void>;
-  updateBookingByAdmin: (bookingId: string, newDate: string, newTime: string) => Promise<void>; // New
+  updateBookingByAdmin: (bookingId: string, newDate: string, newTime: string) => Promise<void>;
   signUpForPlaySlot: (slotKey: string, date: string, userDetails: { userId: string, userName: string, userEmail: string }) => Promise<void>;
   cancelPlaySlotSignUp: (signUpId: string) => Promise<void>;
   isLoading: boolean;

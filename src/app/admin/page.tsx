@@ -5,25 +5,31 @@ import { useEffect, useState, useMemo } from 'react';
 import { useAuth } from '@/hooks/useAuth';
 import { useRouter } from 'next/navigation';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
-import { BarChart, LineChart, XAxis, YAxis, CartesianGrid, Tooltip, Legend, Bar, Line, ResponsiveContainer } from 'recharts'; // Direct import from recharts
+import { BarChart, LineChart, XAxis, YAxis, CartesianGrid, Tooltip, Legend, Bar, Line, ResponsiveContainer } from 'recharts';
 import { courts } from '@/config/appConfig';
-import { format, subDays } from 'date-fns';
+import { format, subDays, parseISO, eachDayOfInterval, isWithinInterval, startOfDay } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
-import { Activity, BarChart3, CalendarCheck, Users, ShieldAlert, UsersRound } from 'lucide-react';
+import { Activity, BarChart3, CalendarCheck, Users, ShieldAlert, UsersRound, CalendarIcon } from 'lucide-react';
 import { Skeleton } from '@/components/ui/skeleton';
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Button } from "@/components/ui/button";
+import { Calendar } from "@/components/ui/calendar";
+import { cn } from "@/lib/utils";
 
 interface ChartData {
   name: string;
   total?: number;
   count?: number;
-  [key: string]: any; // For multiple bars/lines
+  [key: string]: any; 
 }
 
 export default function AdminDashboardPage() {
-  const { currentUser, isAdmin, bookings, playSignUps, isLoading: authLoading } = useAuth();
+  const { currentUser, isAdmin, bookings, playSignUps, totalUsers, isLoading: authLoading } = useAuth();
   const router = useRouter();
 
   const [isClient, setIsClient] = useState(false);
+  const [startDate, setStartDate] = useState<Date | undefined>(subDays(new Date(), 6));
+  const [endDate, setEndDate] = useState<Date | undefined>(new Date());
 
   useEffect(() => {
     setIsClient(true);
@@ -40,7 +46,7 @@ export default function AdminDashboardPage() {
   }, [currentUser, isAdmin, authLoading, router]);
 
   const totalBookings = useMemo(() => bookings.length, [bookings]);
-  const totalPlaySignUps = useMemo(() => playSignUps.length, [playSignUps]);
+  const totalPlaySignUpsCount = useMemo(() => playSignUps.length, [playSignUps]);
 
   const bookingsPerCourt: ChartData[] = useMemo(() => {
     return courts.map(court => ({
@@ -49,29 +55,44 @@ export default function AdminDashboardPage() {
     }));
   }, [bookings]);
 
-  const bookingsLast7Days: ChartData[] = useMemo(() => {
-    const data: ChartData[] = [];
-    const today = new Date();
-    for (let i = 6; i >= 0; i--) {
-      const day = subDays(today, i);
-      const formattedDay = format(day, 'yyyy-MM-dd');
-      const count = bookings.filter(b => b.date === formattedDay).length;
-      data.push({ name: format(day, 'dd/MM', { locale: ptBR }), count });
-    }
-    return data;
-  }, [bookings]);
+  const filteredBookings = useMemo(() => {
+    if (!startDate || !endDate) return bookings;
+    return bookings.filter(b => {
+      const bookingDate = parseISO(b.date);
+      return isWithinInterval(bookingDate, { start: startOfDay(startDate), end: startOfDay(endDate) });
+    });
+  }, [bookings, startDate, endDate]);
 
-  const playSignUpsLast7Days: ChartData[] = useMemo(() => {
-    const data: ChartData[] = [];
-    const today = new Date();
-    for (let i = 6; i >= 0; i--) {
-      const day = subDays(today, i);
+  const filteredPlaySignUps = useMemo(() => {
+    if (!startDate || !endDate) return playSignUps;
+    return playSignUps.filter(ps => {
+      // Assuming playSignUps have a 'date' field in 'yyyy-MM-dd' format
+      const signUpDate = parseISO(ps.date);
+      return isWithinInterval(signUpDate, { start: startOfDay(startDate), end: startOfDay(endDate) });
+    });
+  }, [playSignUps, startDate, endDate]);
+
+
+  const bookingsLastPeriod: ChartData[] = useMemo(() => {
+    if (!startDate || !endDate) return [];
+    const range = eachDayOfInterval({ start: startDate, end: endDate });
+    return range.map(day => {
       const formattedDay = format(day, 'yyyy-MM-dd');
-      const count = playSignUps.filter(ps => ps.date === formattedDay).length; // Assuming playSignUps have a 'date' field
-      data.push({ name: format(day, 'dd/MM', { locale: ptBR }), count });
-    }
-    return data;
-  }, [playSignUps]);
+      const count = filteredBookings.filter(b => b.date === formattedDay).length;
+      return { name: format(day, 'dd/MM', { locale: ptBR }), count };
+    });
+  }, [filteredBookings, startDate, endDate]);
+
+  const playSignUpsLastPeriod: ChartData[] = useMemo(() => {
+    if (!startDate || !endDate) return [];
+    const range = eachDayOfInterval({ start: startDate, end: endDate });
+    return range.map(day => {
+      const formattedDay = format(day, 'yyyy-MM-dd');
+      const count = filteredPlaySignUps.filter(ps => ps.date === formattedDay).length;
+      return { name: format(day, 'dd/MM', { locale: ptBR }), count };
+    });
+  }, [filteredPlaySignUps, startDate, endDate]);
+
 
   const mostPopularCourt = useMemo(() => {
     if (bookingsPerCourt.length === 0) return "N/A";
@@ -101,7 +122,6 @@ export default function AdminDashboardPage() {
   }
 
   if (!isAdmin) {
-    // This should ideally be handled by AuthContext redirect, but as a fallback:
     return (
       <div className="flex flex-col items-center justify-center min-h-[calc(100vh-10rem)]">
         <ShieldAlert className="h-16 w-16 text-destructive mb-4" />
@@ -111,10 +131,16 @@ export default function AdminDashboardPage() {
     );
   }
   
-  // Fill color for charts (using Tailwind's primary color, converted from HSL)
-  // Primary: 223 54% 22% -> #192A56
   const chartPrimaryFill = "hsl(var(--primary))"; 
   const chartAccentFill = "hsl(var(--accent))";
+  const chartSecondaryFill = "hsl(var(--secondary-foreground))"; // Example for another color
+
+  const dateRangeLabel = useMemo(() => {
+    if (startDate && endDate) {
+      return `${format(startDate, "dd/MM/yy")} - ${format(endDate, "dd/MM/yy")}`;
+    }
+    return "Últimos 7 dias";
+  }, [startDate, endDate]);
 
   return (
     <div className="space-y-8 p-4 sm:p-6 md:p-8">
@@ -140,7 +166,7 @@ export default function AdminDashboardPage() {
             </CardHeader>
             <CardContent>
               <div className="text-2xl font-bold">{totalBookings}</div>
-              <p className="text-xs text-muted-foreground">Reservas de quadra ativas no sistema.</p>
+              <p className="text-xs text-muted-foreground">Reservas de quadra no sistema.</p>
             </CardContent>
           </Card>
           <Card className="shadow-md hover:shadow-lg transition-shadow">
@@ -149,7 +175,7 @@ export default function AdminDashboardPage() {
               <Users className="h-5 w-5 text-muted-foreground" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">{totalPlaySignUps}</div>
+              <div className="text-2xl font-bold">{totalPlaySignUpsCount}</div>
               <p className="text-xs text-muted-foreground">Total de inscrições em sessões "Play".</p>
             </CardContent>
           </Card>
@@ -160,38 +186,96 @@ export default function AdminDashboardPage() {
             </CardHeader>
             <CardContent>
               <div className="text-2xl font-bold truncate" title={mostPopularCourt}>{mostPopularCourt}</div>
-              <p className="text-xs text-muted-foreground">Baseado no número de reservas.</p>
+              <p className="text-xs text-muted-foreground">Baseado no nº total de reservas.</p>
             </CardContent>
           </Card>
            <Card className="shadow-md hover:shadow-lg transition-shadow">
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Usuários (Placeholder)</CardTitle>
+              <CardTitle className="text-sm font-medium">Total de Usuários</CardTitle>
               <UsersRound className="h-5 w-5 text-muted-foreground" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">N/D</div>
+              <div className="text-2xl font-bold">{totalUsers}</div>
               <p className="text-xs text-muted-foreground">Total de usuários registrados.</p>
             </CardContent>
           </Card>
         </div>
       </section>
 
+      {/* Filters Section */}
+      <section>
+        <h2 className="text-2xl font-semibold tracking-tight mb-4 text-primary/90">Filtros de Período</h2>
+        <div className="flex flex-col sm:flex-row gap-4 items-center">
+          <Popover>
+            <PopoverTrigger asChild>
+              <Button
+                variant={"outline"}
+                className={cn(
+                  "w-full sm:w-[280px] justify-start text-left font-normal",
+                  !startDate && "text-muted-foreground"
+                )}
+              >
+                <CalendarIcon className="mr-2 h-4 w-4" />
+                {startDate ? format(startDate, "PPP", { locale: ptBR }) : <span>Data Inicial</span>}
+              </Button>
+            </PopoverTrigger>
+            <PopoverContent className="w-auto p-0">
+              <Calendar
+                mode="single"
+                selected={startDate}
+                onSelect={setStartDate}
+                initialFocus
+                locale={ptBR}
+                disabled={(date) => date > (endDate || new Date()) || date < new Date("2000-01-01")}
+              />
+            </PopoverContent>
+          </Popover>
+           <span className="text-muted-foreground hidden sm:inline">-</span>
+          <Popover>
+            <PopoverTrigger asChild>
+              <Button
+                variant={"outline"}
+                className={cn(
+                  "w-full sm:w-[280px] justify-start text-left font-normal",
+                  !endDate && "text-muted-foreground"
+                )}
+              >
+                <CalendarIcon className="mr-2 h-4 w-4" />
+                {endDate ? format(endDate, "PPP", { locale: ptBR }) : <span>Data Final</span>}
+              </Button>
+            </PopoverTrigger>
+            <PopoverContent className="w-auto p-0">
+              <Calendar
+                mode="single"
+                selected={endDate}
+                onSelect={setEndDate}
+                initialFocus
+                locale={ptBR}
+                disabled={(date) => date < (startDate || new Date("1900-01-01")) || date > new Date()}
+              />
+            </PopoverContent>
+          </Popover>
+        </div>
+         {(!startDate || !endDate) && <p className="text-sm text-destructive mt-2">Por favor, selecione uma data inicial e final para os gráficos de período.</p>}
+      </section>
+
       {/* Charts Section */}
       <section className="space-y-8">
         <div>
             <h2 className="text-2xl font-semibold tracking-tight mb-4 text-primary/90">Atividade de Reservas</h2>
+            <p className="text-sm text-muted-foreground mb-4">Exibindo dados para o período: {dateRangeLabel}</p>
             <div className="grid gap-8 md:grid-cols-2">
             <Card className="shadow-md hover:shadow-lg transition-shadow">
               <CardHeader>
-                <CardTitle>Reservas por Quadra</CardTitle>
-                <CardDescription>Distribuição de reservas entre as quadras disponíveis.</CardDescription>
+                <CardTitle>Reservas por Quadra (Total)</CardTitle>
+                <CardDescription>Distribuição total de reservas entre as quadras.</CardDescription>
               </CardHeader>
               <CardContent>
                 <ResponsiveContainer width="100%" height={300}>
                   <BarChart data={bookingsPerCourt}>
                     <CartesianGrid strokeDasharray="3 3" opacity={0.5}/>
-                    <XAxis dataKey="name" stroke="#888888" fontSize={12} tickLine={false} axisLine={false} />
-                    <YAxis stroke="#888888" fontSize={12} tickLine={false} axisLine={false} allowDecimals={false}/>
+                    <XAxis dataKey="name" stroke="hsl(var(--muted-foreground))" fontSize={12} tickLine={false} axisLine={false} />
+                    <YAxis stroke="hsl(var(--muted-foreground))" fontSize={12} tickLine={false} axisLine={false} allowDecimals={false}/>
                     <Tooltip 
                         contentStyle={{ backgroundColor: 'hsl(var(--background))', border: '1px solid hsl(var(--border))', borderRadius: 'var(--radius)'}}
                         labelStyle={{ color: 'hsl(var(--foreground))' }}
@@ -206,15 +290,15 @@ export default function AdminDashboardPage() {
 
             <Card className="shadow-md hover:shadow-lg transition-shadow">
               <CardHeader>
-                <CardTitle>Reservas nos Últimos 7 Dias</CardTitle>
-                 <CardDescription>Volume de reservas de quadra dia a dia.</CardDescription>
+                <CardTitle>Reservas no Período Selecionado</CardTitle>
+                 <CardDescription>Volume de reservas de quadra dia a dia no período.</CardDescription>
               </CardHeader>
               <CardContent>
                 <ResponsiveContainer width="100%" height={300}>
-                  <LineChart data={bookingsLast7Days}>
+                  <LineChart data={bookingsLastPeriod}>
                     <CartesianGrid strokeDasharray="3 3" opacity={0.5}/>
-                    <XAxis dataKey="name" stroke="#888888" fontSize={12} tickLine={false} axisLine={false} />
-                    <YAxis stroke="#888888" fontSize={12} tickLine={false} axisLine={false} allowDecimals={false}/>
+                    <XAxis dataKey="name" stroke="hsl(var(--muted-foreground))" fontSize={12} tickLine={false} axisLine={false} />
+                    <YAxis stroke="hsl(var(--muted-foreground))" fontSize={12} tickLine={false} axisLine={false} allowDecimals={false}/>
                     <Tooltip 
                         contentStyle={{ backgroundColor: 'hsl(var(--background))', border: '1px solid hsl(var(--border))', borderRadius: 'var(--radius)'}}
                         labelStyle={{ color: 'hsl(var(--foreground))' }}
@@ -231,17 +315,18 @@ export default function AdminDashboardPage() {
         
         <div>
             <h2 className="text-2xl font-semibold tracking-tight mb-4 text-primary/90">Atividade "Play"</h2>
+            <p className="text-sm text-muted-foreground mb-4">Exibindo dados para o período: {dateRangeLabel}</p>
              <Card className="shadow-md hover:shadow-lg transition-shadow">
               <CardHeader>
-                <CardTitle>Inscrições no "Play" nos Últimos 7 Dias</CardTitle>
-                <CardDescription>Volume de inscrições nas sessões "Play".</CardDescription>
+                <CardTitle>Inscrições no "Play" no Período Selecionado</CardTitle>
+                <CardDescription>Volume de inscrições nas sessões "Play" no período.</CardDescription>
               </CardHeader>
               <CardContent>
                 <ResponsiveContainer width="100%" height={300}>
-                  <LineChart data={playSignUpsLast7Days}>
+                  <LineChart data={playSignUpsLastPeriod}>
                     <CartesianGrid strokeDasharray="3 3" opacity={0.5}/>
-                    <XAxis dataKey="name" stroke="#888888" fontSize={12} tickLine={false} axisLine={false} />
-                    <YAxis stroke="#888888" fontSize={12} tickLine={false} axisLine={false} allowDecimals={false}/>
+                    <XAxis dataKey="name" stroke="hsl(var(--muted-foreground))" fontSize={12} tickLine={false} axisLine={false} />
+                    <YAxis stroke="hsl(var(--muted-foreground))" fontSize={12} tickLine={false} axisLine={false} allowDecimals={false}/>
                      <Tooltip 
                         contentStyle={{ backgroundColor: 'hsl(var(--background))', border: '1px solid hsl(var(--border))', borderRadius: 'var(--radius)'}}
                         labelStyle={{ color: 'hsl(var(--foreground))' }}
@@ -261,14 +346,11 @@ export default function AdminDashboardPage() {
             <CardTitle className="text-xl">Notas e Próximos Passos</CardTitle>
         </CardHeader>
         <CardContent className="text-sm text-muted-foreground space-y-2">
-            <p><Activity className="inline h-4 w-4 mr-1"/>Os gráficos de "Reservas/Inscrições nos Últimos 7 Dias" são baseados nos dados carregados no momento. Para histórico completo (meses/anos), seria necessário um backend para agregar dados do Firestore.</p>
-            <p><UsersRound className="inline h-4 w-4 mr-1"/>A métrica "Total de Usuários" é um placeholder. Para exibi-la, seria preciso uma forma de contar os usuários da autenticação ou da coleção 'users'.</p>
-            <p>Este dashboard pode ser expandido com mais gráficos, como horários de pico, taxas de cancelamento, etc., conforme a necessidade e a disponibilidade de dados agregados.</p>
+            <p><Activity className="inline h-4 w-4 mr-1"/>Os gráficos de atividade por período são baseados nos dados carregados no momento. Para histórico completo e mais performance em grandes volumes, seria necessário um backend para agregar dados do Firestore.</p>
+            <p>Este dashboard pode ser expandido com mais gráficos (ex: horários de pico, taxas de cancelamento) e filtros mais avançados (ex: por tipo de quadra).</p>
         </CardContent>
       </Card>
 
     </div>
   );
 }
-
-    
