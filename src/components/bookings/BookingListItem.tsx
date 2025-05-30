@@ -5,16 +5,17 @@ import { useState } from 'react';
 import type { Booking } from '@/lib/types';
 import { Card, CardContent, CardHeader, CardTitle, CardFooter } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { CalendarDays, Clock, ShieldCheck, Sun, Trash2 } from 'lucide-react';
+import { CalendarDays, Clock, ShieldCheck, Sun, Trash2, User } from 'lucide-react'; // Added User icon
 import { format, parseISO } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { BookingCancellationDialog } from './BookingCancellationDialog';
 
 interface BookingListItemProps {
   booking: Booking;
+  showUserName?: boolean; // Optional: to show user name for admins
 }
 
-export function BookingListItem({ booking }: BookingListItemProps) {
+export function BookingListItem({ booking, showUserName = false }: BookingListItemProps) {
   const [isCancelDialogOpen, setIsCancelDialogOpen] = useState(false);
   const bookingDate = parseISO(booking.date);
 
@@ -30,6 +31,12 @@ export function BookingListItem({ booking }: BookingListItemProps) {
               }
               {booking.courtName}
             </CardTitle>
+             {showUserName && booking.userName && (
+              <p className="text-xs text-muted-foreground flex items-center mt-1">
+                <User className="mr-1 h-3 w-3" />
+                {booking.userName}
+              </p>
+            )}
           </CardHeader>
           <CardContent className="space-y-2 text-sm">
             <div className="flex items-center">

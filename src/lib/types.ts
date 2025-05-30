@@ -27,40 +27,39 @@ export interface Booking {
 
 export interface TimeSlot {
   time: string; // HH:mm
-  isBooked: boolean; // True if a regular booking exists for this court/time
-  isPlayTime?: boolean; // True if this slot falls into a general "Play" session time
+  isBooked: boolean;
+  isPlayTime?: boolean;
 }
 
-// Tipos para o sistema "Play"
 export interface PlaySlotConfig {
-  key: string; // ex: "sexta-16-20"
-  label: string; // ex: "Play SEXTOU!!"
-  dayOfWeek: number; // 0 (Dom) a 6 (Sab)
-  timeRange: string; // ex: "16:00 - 20:00"
+  key: string;
+  label: string;
+  dayOfWeek: number;
+  timeRange: string;
 }
 
 export interface PlaySignUp {
-  id: string; // Firestore document ID
+  id: string;
   userId: string;
   userName: string;
-  userEmail: string; // Para exibição e contato, se necessário
-  slotKey: string; // "sexta-16-20", "sabado-16-20", "domingo-16-20"
-  date: string; // YYYY-MM-DD, data específica da sessão
-  signedUpAt: any; // Idealmente Timestamp do Firestore, mas 'any' para simplicidade na definição inicial
+  userEmail: string;
+  slotKey: string;
+  date: string; // YYYY-MM-DD
+  signedUpAt: any;
 }
 
 
-// AuthContext types
 import type { ReactNode } from 'react';
 
 export interface AuthContextType {
   currentUser: User | null;
+  isAdmin: boolean; // New property for admin status
   bookings: Booking[];
   playSignUps: PlaySignUp[];
   login: (email: string, pass: string) => Promise<void>;
   signUp: (name: string, email: string, pass: string) => Promise<void>;
   logout: () => Promise<void>;
-  sendPasswordReset: (email: string) => Promise<void>; // Nova função
+  sendPasswordReset: (email: string) => Promise<void>;
   addBooking: (newBooking: Omit<Booking, 'id' | 'userId' | 'userName'>) => Promise<string>;
   cancelBooking: (bookingId: string) => Promise<void>;
   signUpForPlaySlot: (slotKey: string, date: string, userDetails: { userId: string, userName: string, userEmail: string }) => Promise<void>;

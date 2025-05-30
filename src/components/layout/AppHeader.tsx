@@ -3,8 +3,8 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { useState, useEffect } from 'react'; // Added useState, useEffect
-import { LogIn, LogOut, ListChecks, HomeIcon as HomeLucideIcon, UserPlus, HelpCircle, Swords } from 'lucide-react';
+import { useState, useEffect } from 'react';
+import { LogIn, LogOut, ListChecks, HomeIcon as HomeLucideIcon, UserPlus, HelpCircle, Swords, ShieldAlert } from 'lucide-react'; // Added ShieldAlert for Admin
 import { APP_NAME } from '@/config/appConfig';
 import { useAuth } from '@/hooks/useAuth';
 import { Button } from '@/components/ui/button';
@@ -22,7 +22,7 @@ import {
 import { Skeleton } from '../ui/skeleton';
 
 export function AppHeader() {
-  const { currentUser, logout, isLoading: authContextIsLoading } = useAuth(); // Renamed isLoading to authContextIsLoading
+  const { currentUser, logout, isLoading: authContextIsLoading, isAdmin } = useAuth();
   const pathname = usePathname();
   const [isClientMounted, setIsClientMounted] = useState(false);
 
@@ -46,30 +46,25 @@ export function AppHeader() {
       .toUpperCase();
   };
 
-  // Render skeletons if not yet mounted on client or if auth is still loading
   if (!isClientMounted || authContextIsLoading) {
     return (
       <header className="sticky top-0 z-50 w-full border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
-        <div className="container flex h-16 items-center justify-between"> {/* Changed to justify-between for better skeleton layout */}
+        <div className="container flex h-16 items-center justify-between">
           <div className="flex items-center gap-2">
-            <Skeleton className="h-9 w-9 rounded-sm" /> {/* Logo skeleton */}
-            {/* Skeleton for the full name, visible sm and up */}
+            <Skeleton className="h-9 w-9 rounded-sm" />
             <div className="hidden sm:inline-block">
               <Skeleton className="h-6 w-40 rounded bg-muted" />
             </div>
-            {/* Skeleton for "AK", visible xs only */}
             <div className="sm:hidden">
               <Skeleton className="h-6 w-10 rounded bg-muted" />
             </div>
           </div>
-          {/* Basic skeleton for nav icons - USE navLinksBase FOR CONSISTENT LENGTH */}
           <div className="hidden sm:flex items-center gap-2">
             {navLinksBase.map((_, i) => (
-              <Skeleton key={`skel-nav-${i}`} className="h-8 w-8 rounded-md bg-muted" />
+              <Skeleton key={`skel-nav-base-${i}`} className="h-8 w-8 rounded-md bg-muted" />
             ))}
           </div>
           <div className="flex items-center gap-2">
-            {/* Placeholder for auth buttons/avatar */}
             <Skeleton className="h-9 w-10 rounded-full sm:rounded-md bg-muted" />
           </div>
         </div>
@@ -77,16 +72,20 @@ export function AppHeader() {
     );
   }
 
-  // Construct actual navLinks now that currentUser is stable
   let navLinksActual = [...navLinksBase];
   if (currentUser) {
     const playIndex = navLinksActual.findIndex(link => link.href === '/play');
     if (playIndex !== -1) {
       navLinksActual.splice(playIndex + 1, 0, { href: '/my-bookings', label: 'Minhas Reservas', icon: ListChecks });
     } else {
+      // Fallback if '/play' is not found, though it should be
       navLinksActual.push({ href: '/my-bookings', label: 'Minhas Reservas', icon: ListChecks });
     }
   }
+  if (isAdmin) { // Add Admin link if user is admin
+    navLinksActual.push({ href: '/admin', label: 'Admin', icon: ShieldAlert });
+  }
+
 
   return (
     <header className="sticky top-0 z-50 w-full border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">

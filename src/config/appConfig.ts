@@ -3,6 +3,13 @@ import type { Court, PlaySlotConfig } from '@/lib/types';
 
 export const APP_NAME = "Arena Klein Beach Tennis";
 
+// Placeholder for Admin User UIDs. Replace with actual Firebase User UIDs.
+// For production, use custom claims or a more secure method.
+export const adminUserUids: string[] = [
+  "REPLACE_WITH_ACTUAL_ADMIN_UID_1",
+  // "REPLACE_WITH_ACTUAL_ADMIN_UID_2", 
+];
+
 export const courts: Court[] = [
   {
     id: 'covered-court',
@@ -23,19 +30,16 @@ export const courts: Court[] = [
 ];
 
 export const availableTimeSlots: string[] = [
-  '07:00', '08:00', // Horários adicionados
+  '07:00', '08:00',
   '09:00', '10:00', '11:00', '12:00', '13:00', '14:00',
   '15:00', '16:00', '17:00', '18:00', '19:00', '20:00'
 ];
 
-// Configuração para o sistema "Play"
-// dayOfWeek: 0 (Domingo), 1 (Segunda), ..., 5 (Sexta), 6 (Sábado)
 export const playSlotsConfig: PlaySlotConfig[] = [
-  { key: "sexta-16-20", label: "Play SEXTOU!!", dayOfWeek: 5, timeRange: "16:00 - 20:00" }, // Sexta-feira
-  { key: "sabado-16-20", label: "Play SABADOU!!", dayOfWeek: 6, timeRange: "16:00 - 20:00" }, // Sábado
-  { key: "domingo-16-20", label: "Play DOMINGOU!!", dayOfWeek: 0, timeRange: "16:00 - 20:00" }, // Domingo
+  { key: "sexta-16-20", label: "Play SEXTOU!!", dayOfWeek: 5, timeRange: "16:00 - 20:00" },
+  { key: "sabado-16-20", label: "Play SABADOU!!", dayOfWeek: 6, timeRange: "16:00 - 20:00" },
+  { key: "domingo-16-20", label: "Play DOMINGOU!!", dayOfWeek: 0, timeRange: "16:00 - 20:00" },
 ];
 
-export const maxParticipantsPerPlaySlot = 20; // Máximo de 20 participantes por slot/data do Play
-export const numberOfWeeksToDisplayPlaySlots = 4; // Mostrar slots para as próximas 4 semanas (aprox. 1 mês)
-
+export const maxParticipantsPerPlaySlot = 20;
+export const numberOfWeeksToDisplayPlaySlots = 4;

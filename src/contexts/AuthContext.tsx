@@ -10,7 +10,7 @@ import {
   signInWithEmailAndPassword, 
   createUserWithEmailAndPassword,
   updateProfile,
-  sendPasswordResetEmail, // Importado
+  sendPasswordResetEmail,
   type User as FirebaseUser
 } from 'firebase/auth';
 import { auth, db } from '@/lib/firebase';
@@ -23,21 +23,23 @@ import {
   setDoc, 
   serverTimestamp, 
   deleteDoc,
-  addDoc, // Para novas reservas
-  getDocs, // Para verificar conflitos
-  Timestamp, // Para PlaySignUp
+  addDoc,
+  getDocs,
+  getDoc, // Added for fetching single booking in cancelBooking
+  Timestamp,
 } from 'firebase/firestore';
 import { useToast } from "@/hooks/use-toast";
-import { maxParticipantsPerPlaySlot } from '@/config/appConfig'; // Para o Play
+import { maxParticipantsPerPlaySlot, adminUserUids } from '@/config/appConfig'; // Import adminUserUids
 
 export const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 const USERS_COLLECTION_NAME = "users";
-const RESERVAS_COLLECTION_NAME = "reservas"; // Nome da coleção em português
+const RESERVAS_COLLECTION_NAME = "reservas";
 const PLAY_SIGNUPS_COLLECTION_NAME = "playSignUps"; 
 
 export function AuthProvider({ children }: AuthProviderProps) {
   const [currentUser, setCurrentUser] = useState<User | null>(null);
+  const [isAdmin, setIsAdmin] = useState(false); // New state for admin status
   const [bookings, setBookings] = useState<Booking[]>([]);
   const [playSignUps, setPlaySignUps] = useState<PlaySignUp[]>([]); 
   const [isLoading, setIsLoading] = useState(true); 
@@ -49,18 +51,20 @@ export function AuthProvider({ children }: AuthProviderProps) {
   useEffect(() => {
     const unsubscribeAuth = onAuthStateChanged(auth, (firebaseUser: FirebaseUser | null) => {
       if (firebaseUser) {
-        setCurrentUser({
+        const user = {
           id: firebaseUser.uid,
           email: firebaseUser.email || "",
           name: firebaseUser.displayName || firebaseUser.email?.split('@')[0] || "Usuário",
-        });
+        };
+        setCurrentUser(user);
+        setIsAdmin(adminUserUids.includes(user.id)); // Check if user is admin
       } else {
         setCurrentUser(null);
+        setIsAdmin(false); // Reset admin status on logout
       }
       setIsLoading(false);
     });
 
-    // Listener para TODAS as reservas (necessário para o calendário de disponibilidade)
     const reservasColRef = collection(db, RESERVAS_COLLECTION_NAME); 
     const qReservas = query(reservasColRef); 
     const unsubscribeBookings = onSnapshot(qReservas, (querySnapshot) => {
@@ -79,7 +83,6 @@ export function AuthProvider({ children }: AuthProviderProps) {
       });
     });
 
-    // Listener para Play SignUps
     const playSignUpsColRef = collection(db, PLAY_SIGNUPS_COLLECTION_NAME);
     const qPlaySignUps = query(playSignUpsColRef); 
     const unsubscribePlaySignUps = onSnapshot(qPlaySignUps, (querySnapshot) => {
@@ -103,7 +106,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
       unsubscribeBookings();
       unsubscribePlaySignUps(); 
     };
-  }, []); // Removido toast das dependências
+  }, []);
 
 
   const clearAuthError = () => setAuthError(null);
@@ -132,7 +135,6 @@ export function AuthProvider({ children }: AuthProviderProps) {
       if (userCredential.user) {
         await updateProfile(userCredential.user, { displayName: name });
         
-        // Criar documento do usuário na coleção "users"
         const userDocRef = doc(db, USERS_COLLECTION_NAME, userCredential.user.uid);
         await setDoc(userDocRef, {
           uid: userCredential.user.uid,
@@ -146,9 +148,10 @@ export function AuthProvider({ children }: AuthProviderProps) {
           email: userCredential.user.email || "",
           name: name,
         });
+        setIsAdmin(adminUserUids.includes(userCredential.user.uid));
       }
       router.push('/');
-    } catch (error: any) {
+    } catch (error: any)      {
       console.error("Sign up error:", error);
       const message = getFirebaseErrorMessage(error.code);
       setAuthError(message);
@@ -164,6 +167,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
     try {
       await signOut(auth);
       setCurrentUser(null);
+      setIsAdmin(false);
       router.push('/login');
     } catch (error: any) {
       console.error("Logout error:", error);
@@ -174,7 +178,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
       setIsLoading(false);
     }
   };
-
+  
   // Para localizar o email de redefinição de senha (e outros emails do Firebase Auth) para português,
   // você deve ir ao Console do Firebase > Authentication > Templates.
   // Selecione "Password reset" e altere o idioma do template para "Português (pt)".
@@ -186,7 +190,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
       toast({
         title: "Link de Redefinição Enviado",
         description: `Se uma conta existir para ${email}, um email foi enviado com instruções para redefinir sua senha.`,
-        duration: 9000, // Maior duração para esta mensagem
+        duration: 9000,
       });
     } catch (error: any) {
       console.error("Password reset error:", error);
@@ -208,13 +212,11 @@ export function AuthProvider({ children }: AuthProviderProps) {
 
     if (!currentUser) {
       const errMsg = "Você precisa estar logado para fazer uma reserva.";
-      setAuthError(errMsg);
       toast({ variant: "destructive", title: "Não Autenticado", description: errMsg });
       router.push('/login');
       return Promise.reject(new Error(errMsg));
     }
 
-    // Pré-cast e validação rigorosa dos campos de entrada
     const courtIdStr = String(newBookingData.courtId || '').trim();
     const dateStr = String(newBookingData.date || '').trim();
     const timeStr = String(newBookingData.time || '').trim();
@@ -246,8 +248,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
         console.error(msg, newBookingData);
         throw new Error(msg);
     }
-
-    // Gerar ID da reserva no cliente
+    
     const generatedBookingId = doc(collection(db, RESERVAS_COLLECTION_NAME)).id;
     
     try {
@@ -286,7 +287,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
       return generatedBookingId;
 
     } catch (error: any) {
-       console.error(
+      console.error(
         `Erro ao adicionar reserva (verificação não transacional ou escrita) na coleção '${RESERVAS_COLLECTION_NAME}'. Nome do Erro: "${error.name}" "Código do Erro:" ${error.code} "Mensagem do Erro:" "${error.message}" "Objeto de Erro Completo:"`, error
       );
       
@@ -309,7 +310,6 @@ export function AuthProvider({ children }: AuthProviderProps) {
     }
   };
 
-
   const cancelBooking = async (bookingId: string) => {
     if (!currentUser) {
       toast({ variant: "destructive", title: "Não Autenticado", description: "Você precisa estar logado para cancelar uma reserva."});
@@ -318,10 +318,32 @@ export function AuthProvider({ children }: AuthProviderProps) {
     }
     try {
       const bookingDocRef = doc(db, RESERVAS_COLLECTION_NAME, bookingId);
-      await deleteDoc(bookingDocRef);
+      const bookingDocSnap = await getDoc(bookingDocRef);
+
+      if (!bookingDocSnap.exists()) {
+        throw new Error("Reserva não encontrada.");
+      }
+
+      const bookingData = bookingDocSnap.data() as Booking;
+
+      // Allow cancellation if user is admin OR if user is the owner of the booking
+      if (isAdmin || currentUser.id === bookingData.userId) {
+        await deleteDoc(bookingDocRef);
+        toast({
+            title: "Reserva Cancelada",
+            description: `A reserva ID ${bookingId} foi cancelada com sucesso.`,
+        });
+      } else {
+        throw new Error("Você não tem permissão para cancelar esta reserva.");
+      }
     } catch (error: any) {
       console.error(`Erro ao cancelar reserva na coleção '${RESERVAS_COLLECTION_NAME}': `, error);
-      throw error; 
+      toast({
+        variant: "destructive",
+        title: "Falha ao Cancelar",
+        description: error.message || "Não foi possível cancelar a reserva.",
+      });
+      throw error; // Re-throw para que o componente possa tratar se necessário
     }
   };
 
@@ -401,6 +423,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
   return (
     <AuthContext.Provider value={{ 
       currentUser, 
+      isAdmin, // Provide isAdmin
       bookings, 
       playSignUps, 
       login, 
@@ -444,5 +467,3 @@ function getFirebaseErrorMessage(errorCode: string): string {
       return "Ocorreu um erro de autenticação. Tente novamente.";
   }
 }
-
-    
