@@ -57,18 +57,22 @@ export default function AdminDashboardPage() {
 
   const filteredBookings = useMemo(() => {
     if (!startDate || !endDate) return bookings;
+    const start = startOfDay(startDate);
+    const end = startOfDay(endDate);
     return bookings.filter(b => {
       const bookingDate = parseISO(b.date);
-      return isWithinInterval(bookingDate, { start: startOfDay(startDate), end: startOfDay(endDate) });
+      return isWithinInterval(bookingDate, { start, end });
     });
   }, [bookings, startDate, endDate]);
 
   const filteredPlaySignUps = useMemo(() => {
     if (!startDate || !endDate) return playSignUps;
+    // Assuming playSignUps have a 'date' field in 'yyyy-MM-dd' format
+    const start = startOfDay(startDate);
+    const end = startOfDay(endDate);
     return playSignUps.filter(ps => {
-      // Assuming playSignUps have a 'date' field in 'yyyy-MM-dd' format
       const signUpDate = parseISO(ps.date);
-      return isWithinInterval(signUpDate, { start: startOfDay(startDate), end: startOfDay(endDate) });
+      return isWithinInterval(signUpDate, { start, end });
     });
   }, [playSignUps, startDate, endDate]);
 
@@ -99,6 +103,12 @@ export default function AdminDashboardPage() {
     return bookingsPerCourt.reduce((prev, current) => (prev.total! > current.total!) ? prev : current).name;
   }, [bookingsPerCourt]);
 
+  const dateRangeLabel = useMemo(() => {
+    if (startDate && endDate) {
+      return `${format(startDate, "dd/MM/yy")} - ${format(endDate, "dd/MM/yy")}`;
+    }
+    return "Últimos 7 dias";
+  }, [startDate, endDate]);
 
   if (authLoading || !isClient) {
     return (
@@ -134,13 +144,6 @@ export default function AdminDashboardPage() {
   const chartPrimaryFill = "hsl(var(--primary))"; 
   const chartAccentFill = "hsl(var(--accent))";
   const chartSecondaryFill = "hsl(var(--secondary-foreground))"; // Example for another color
-
-  const dateRangeLabel = useMemo(() => {
-    if (startDate && endDate) {
-      return `${format(startDate, "dd/MM/yy")} - ${format(endDate, "dd/MM/yy")}`;
-    }
-    return "Últimos 7 dias";
-  }, [startDate, endDate]);
 
   return (
     <div className="space-y-8 p-4 sm:p-6 md:p-8">
