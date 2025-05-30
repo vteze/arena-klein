@@ -9,7 +9,7 @@ import { BarChart, LineChart, XAxis, YAxis, CartesianGrid, Tooltip, Legend, Bar,
 import { courts } from '@/config/appConfig';
 import { format, subDays, parseISO, eachDayOfInterval, isWithinInterval, startOfDay } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
-import { Activity, BarChart3, CalendarCheck, Users, ShieldAlert, UsersRound, CalendarIcon } from 'lucide-react';
+import { Activity, BarChart3, CalendarCheck, Users, ShieldAlert, UsersRound, CalendarDays as CalendarIconLucide } from 'lucide-react'; // Renamed to avoid conflict
 import { Skeleton } from '@/components/ui/skeleton';
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Button } from "@/components/ui/button";
@@ -31,6 +31,79 @@ export default function AdminDashboardPage() {
   const [startDate, setStartDate] = useState<Date | undefined>(subDays(new Date(), 6));
   const [endDate, setEndDate] = useState<Date | undefined>(new Date());
 
+  // ALL HOOKS MUST BE CALLED AT THE TOP LEVEL
+  const totalBookings = useMemo(() => bookings.length, [bookings]);
+  const totalPlaySignUpsCount = useMemo(() => playSignUps.length, [playSignUps]);
+
+  const bookingsPerCourt: ChartData[] = useMemo(() => {
+    return courts.map(court => ({
+      name: court.name,
+      total: bookings.filter(b => b.courtId === court.id).length,
+    }));
+  }, [bookings]);
+
+  const filteredBookings = useMemo(() => {
+    if (!startDate || !endDate) return bookings;
+    const start = startOfDay(startDate);
+    const end = startOfDay(endDate); // Ensure end of day for inclusive range if needed, but startOfDay is fine for yyyy-MM-dd matching
+    return bookings.filter(b => {
+      try {
+        const bookingDate = parseISO(b.date);
+        return isWithinInterval(bookingDate, { start, end });
+      } catch (e) {
+        console.warn(`Invalid date format for booking id ${b.id}: ${b.date}`);
+        return false;
+      }
+    });
+  }, [bookings, startDate, endDate]);
+
+  const filteredPlaySignUps = useMemo(() => {
+    if (!startDate || !endDate) return playSignUps;
+    const start = startOfDay(startDate);
+    const end = startOfDay(endDate);
+    return playSignUps.filter(ps => {
+       try {
+        const signUpDate = parseISO(ps.date);
+        return isWithinInterval(signUpDate, { start, end });
+      } catch (e) {
+        console.warn(`Invalid date format for play sign up id ${ps.id}: ${ps.date}`);
+        return false;
+      }
+    });
+  }, [playSignUps, startDate, endDate]);
+
+  const bookingsLastPeriod: ChartData[] = useMemo(() => {
+    if (!startDate || !endDate || !filteredBookings) return [];
+    const range = eachDayOfInterval({ start: startDate, end: endDate });
+    return range.map(day => {
+      const formattedDay = format(day, 'yyyy-MM-dd');
+      const count = filteredBookings.filter(b => b.date === formattedDay).length;
+      return { name: format(day, 'dd/MM', { locale: ptBR }), count };
+    });
+  }, [filteredBookings, startDate, endDate]);
+
+  const playSignUpsLastPeriod: ChartData[] = useMemo(() => {
+    if (!startDate || !endDate || !filteredPlaySignUps) return [];
+    const range = eachDayOfInterval({ start: startDate, end: endDate });
+    return range.map(day => {
+      const formattedDay = format(day, 'yyyy-MM-dd');
+      const count = filteredPlaySignUps.filter(ps => ps.date === formattedDay).length;
+      return { name: format(day, 'dd/MM', { locale: ptBR }), count };
+    });
+  }, [filteredPlaySignUps, startDate, endDate]);
+
+  const mostPopularCourt = useMemo(() => {
+    if (bookingsPerCourt.length === 0) return "N/A";
+    return bookingsPerCourt.reduce((prev, current) => (prev.total! > current.total!) ? prev : current).name;
+  }, [bookingsPerCourt]);
+  
+  const dateRangeLabel = useMemo(() => {
+    if (startDate && endDate) {
+      return `${format(startDate, "dd/MM/yy")} - ${format(endDate, "dd/MM/yy")}`;
+    }
+    return "Últimos 7 dias";
+  }, [startDate, endDate]);
+
   useEffect(() => {
     setIsClient(true);
   }, []);
@@ -45,70 +118,6 @@ export default function AdminDashboardPage() {
     }
   }, [currentUser, isAdmin, authLoading, router]);
 
-  const totalBookings = useMemo(() => bookings.length, [bookings]);
-  const totalPlaySignUpsCount = useMemo(() => playSignUps.length, [playSignUps]);
-
-  const bookingsPerCourt: ChartData[] = useMemo(() => {
-    return courts.map(court => ({
-      name: court.name,
-      total: bookings.filter(b => b.courtId === court.id).length,
-    }));
-  }, [bookings]);
-
-  const filteredBookings = useMemo(() => {
-    if (!startDate || !endDate) return bookings;
-    const start = startOfDay(startDate);
-    const end = startOfDay(endDate);
-    return bookings.filter(b => {
-      const bookingDate = parseISO(b.date);
-      return isWithinInterval(bookingDate, { start, end });
-    });
-  }, [bookings, startDate, endDate]);
-
-  const filteredPlaySignUps = useMemo(() => {
-    if (!startDate || !endDate) return playSignUps;
-    // Assuming playSignUps have a 'date' field in 'yyyy-MM-dd' format
-    const start = startOfDay(startDate);
-    const end = startOfDay(endDate);
-    return playSignUps.filter(ps => {
-      const signUpDate = parseISO(ps.date);
-      return isWithinInterval(signUpDate, { start, end });
-    });
-  }, [playSignUps, startDate, endDate]);
-
-
-  const bookingsLastPeriod: ChartData[] = useMemo(() => {
-    if (!startDate || !endDate) return [];
-    const range = eachDayOfInterval({ start: startDate, end: endDate });
-    return range.map(day => {
-      const formattedDay = format(day, 'yyyy-MM-dd');
-      const count = filteredBookings.filter(b => b.date === formattedDay).length;
-      return { name: format(day, 'dd/MM', { locale: ptBR }), count };
-    });
-  }, [filteredBookings, startDate, endDate]);
-
-  const playSignUpsLastPeriod: ChartData[] = useMemo(() => {
-    if (!startDate || !endDate) return [];
-    const range = eachDayOfInterval({ start: startDate, end: endDate });
-    return range.map(day => {
-      const formattedDay = format(day, 'yyyy-MM-dd');
-      const count = filteredPlaySignUps.filter(ps => ps.date === formattedDay).length;
-      return { name: format(day, 'dd/MM', { locale: ptBR }), count };
-    });
-  }, [filteredPlaySignUps, startDate, endDate]);
-
-
-  const mostPopularCourt = useMemo(() => {
-    if (bookingsPerCourt.length === 0) return "N/A";
-    return bookingsPerCourt.reduce((prev, current) => (prev.total! > current.total!) ? prev : current).name;
-  }, [bookingsPerCourt]);
-
-  const dateRangeLabel = useMemo(() => {
-    if (startDate && endDate) {
-      return `${format(startDate, "dd/MM/yy")} - ${format(endDate, "dd/MM/yy")}`;
-    }
-    return "Últimos 7 dias";
-  }, [startDate, endDate]);
 
   if (authLoading || !isClient) {
     return (
@@ -131,7 +140,7 @@ export default function AdminDashboardPage() {
     );
   }
 
-  if (!isAdmin) {
+  if (!isAdmin) { // This check ensures that if not admin, we return early. Hooks above are fine.
     return (
       <div className="flex flex-col items-center justify-center min-h-[calc(100vh-10rem)]">
         <ShieldAlert className="h-16 w-16 text-destructive mb-4" />
@@ -143,7 +152,7 @@ export default function AdminDashboardPage() {
   
   const chartPrimaryFill = "hsl(var(--primary))"; 
   const chartAccentFill = "hsl(var(--accent))";
-  const chartSecondaryFill = "hsl(var(--secondary-foreground))"; // Example for another color
+  // const chartSecondaryFill = "hsl(var(--secondary-foreground))"; // Example for another color
 
   return (
     <div className="space-y-8 p-4 sm:p-6 md:p-8">
@@ -218,7 +227,7 @@ export default function AdminDashboardPage() {
                   !startDate && "text-muted-foreground"
                 )}
               >
-                <CalendarIcon className="mr-2 h-4 w-4" />
+                <CalendarIconLucide className="mr-2 h-4 w-4" />
                 {startDate ? format(startDate, "PPP", { locale: ptBR }) : <span>Data Inicial</span>}
               </Button>
             </PopoverTrigger>
@@ -243,7 +252,7 @@ export default function AdminDashboardPage() {
                   !endDate && "text-muted-foreground"
                 )}
               >
-                <CalendarIcon className="mr-2 h-4 w-4" />
+                <CalendarIconLucide className="mr-2 h-4 w-4" />
                 {endDate ? format(endDate, "PPP", { locale: ptBR }) : <span>Data Final</span>}
               </Button>
             </PopoverTrigger>
@@ -357,3 +366,5 @@ export default function AdminDashboardPage() {
     </div>
   );
 }
+
+    

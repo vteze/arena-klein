@@ -8,9 +8,6 @@ import { AppHeader } from '@/components/layout/AppHeader';
 import { Toaster } from "@/components/ui/toaster";
 import { cn } from '@/lib/utils';
 
-// GeistSans and GeistMono from the 'geist' package are objects, not functions.
-// Their .variable property provides the CSS variable class name.
-
 export const metadata: Metadata = {
   title: 'Arena Klein Beach Tennis',
   description: 'Reserve sua quadra de beach tennis na Arena Klein.',
@@ -38,3 +35,5 @@ export default function RootLayout({
     </html>
   );
 }
+
+    
