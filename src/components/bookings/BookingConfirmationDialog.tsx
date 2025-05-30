@@ -1,7 +1,7 @@
 
 "use client";
 
-import { useState, useEffect } from 'react'; // useEffect was added here
+import { useState, useEffect } from 'react';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { Button } from '@/components/ui/button';
@@ -17,7 +17,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label'; 
 import { useAuth } from '@/hooks/useAuth';
 import { useToast } from '@/hooks/use-toast';
-import type { Court } from '@/lib/types'; // Removed Booking as it's not directly used
+import type { Court } from '@/lib/types';
 import { personalizedBookingConfirmation, PersonalizedBookingConfirmationInput } from '@/ai/flows/booking-confirmation';
 import { Loader2, CalendarDays, Clock, UserCircle, Mail, UserCog } from 'lucide-react';
 
@@ -51,9 +51,12 @@ export function BookingConfirmationDialog({
       onOpenChange(false); 
       return;
     }
+
     setIsBooking(true);
+    let actualBookingId: string | null = null;
+
     try {
-      const bookingDataForDb = { // Omit<Booking, 'id' | 'userId' | 'userName' | 'onBehalfOf'>
+      const bookingDataForDb = {
         courtId: court.id,
         courtName: court.name,
         courtType: court.type,
@@ -61,14 +64,27 @@ export function BookingConfirmationDialog({
         time: selectedTime,
       };
 
-      const actualBookingId = await addBooking(
+      actualBookingId = await addBooking(
         bookingDataForDb,
         isAdmin && onBehalfOfName.trim() ? onBehalfOfName.trim() : undefined
       ); 
 
+      // Feedback imediato de sucesso da reserva
+      toast({
+        title: "Reserva Confirmada!",
+        description: `Sua ${court.name} em ${format(selectedDate, 'dd/MM/yyyy')} às ${selectedTime} foi agendada (ID: ${actualBookingId}).`,
+        duration: 5000, 
+      });
+
+      onOpenChange(false); // Fecha o diálogo mais cedo
+
+      // Processamento da IA e simulação de email em "background" (não bloqueia UI principal)
+      // Não precisa mais do setIsBooking(false) aqui, pois o finally cuidará disso
+      // e o diálogo já foi fechado.
+
       const nameForEmailSalutation = (isAdmin && onBehalfOfName.trim()) ? onBehalfOfName.trim() : currentUser.name;
       const emailRecipientDisplay = (isAdmin && onBehalfOfName.trim()) 
-        ? `${onBehalfOfName.trim()} (via admin ${currentUser.email})` 
+        ? `${onBehalfOfName.trim()} (contato via admin ${currentUser.email})` 
         : currentUser.email;
 
       const aiInput: PersonalizedBookingConfirmationInput = {
@@ -80,56 +96,57 @@ export function BookingConfirmationDialog({
         bookingId: actualBookingId, 
       };
       
-      // Define fallbacks first
-      let finalConfirmationMessage = `Reserva para ${court.name} em ${format(selectedDate, 'dd/MM/yyyy')} às ${selectedTime} confirmada! (ID: ${actualBookingId})`;
+      let finalAiConfirmationMessage = `Reserva para ${court.name} em ${format(selectedDate, 'dd/MM/yyyy')} às ${selectedTime} confirmada!`; // Fallback
       let finalEmailSubject = `Confirmação da sua reserva na Arena Klein Beach Tennis (ID: ${actualBookingId})`;
-      let finalEmailBody = `Prezado(a) ${nameForEmailSalutation},\n\nSua reserva (ID: ${actualBookingId}) para a ${court.name} no dia ${format(selectedDate, 'dd/MM/yyyy')} às ${selectedTime} está confirmada.\n\nInformações importantes:\n- Chegue com 10 minutos de antecedência.\n- Em caso de necessidade de cancelamento, acesse 'Minhas Reservas' em nosso site/app (se a reserva foi feita por você) ou entre em contato com ${isAdmin && onBehalfOfName.trim() ? currentUser.name : 'a recepção'} (se a reserva foi feita em seu nome por um administrador).\n\nEstamos ansiosos para recebê-lo(a)!\n\nAtenciosamente,\nEquipe Arena Klein Beach Tennis`;
+      let finalEmailBody = `Prezado(a) ${nameForEmailSalutation},\n\nSua reserva (ID: ${actualBookingId}) para a ${court.name} no dia ${format(selectedDate, 'dd/MM/yyyy')} às ${selectedTime} está confirmada.\n\nInformações importantes:\n- Chegue com 10 minutos de antecedência.\n- Em caso de necessidade de cancelamento, acesse 'Minhas Reservas' em nosso site/app ou entre em contato com ${isAdmin && onBehalfOfName.trim() ? currentUser.name : 'a recepção'}.\n\nEstamos ansiosos para recebê-lo(a)!\n\nAtenciosamente,\nEquipe Arena Klein Beach Tennis`;
 
       try {
         const aiResponse = await personalizedBookingConfirmation(aiInput);
-        finalConfirmationMessage = aiResponse.confirmationMessage;
+        finalAiConfirmationMessage = aiResponse.confirmationMessage;
         finalEmailSubject = aiResponse.emailSubject;
         finalEmailBody = aiResponse.emailBody;
+        // Opcional: Um toast secundário se a mensagem da IA for muito valiosa e diferente
+        // toast({ title: "Detalhes da Confirmação:", description: finalAiConfirmationMessage, duration: 7000});
       } catch (aiError: any) {
-        console.warn("Falha ao gerar mensagem personalizada pela IA, usando fallback:", aiError.message);
-        // Fallback values are already set in finalConfirmationMessage, finalEmailSubject, finalEmailBody
+        console.warn("Falha ao gerar mensagem personalizada pela IA (a reserva principal foi bem-sucedida):", aiError.message);
         toast({
           variant: "default", 
-          title: "Info: Confirmação por IA",
-          description: "A reserva foi criada, mas houve uma falha ao gerar a mensagem de confirmação personalizada pela IA. Usando mensagem padrão.",
-          duration: 6000,
+          title: "Info: Confirmação Detalhada",
+          description: "Sua reserva está confirmada. Houve um problema ao gerar a mensagem personalizada para o email (simulado).",
+          duration: 7000,
         });
       }
 
-      toast({
-        title: "Reserva Confirmada!",
-        description: `${finalConfirmationMessage} (Um email de confirmação para ${emailRecipientDisplay} também seria enviado).`,
-        duration: 7000, 
-      });
-
-      console.log("--- Simulação de Envio de Email ---");
+      console.log("--- Simulação de Envio de Email (Após Reserva e Fechamento do Diálogo) ---");
       console.log("Para (Conteúdo do Email Destinado a):", nameForEmailSalutation);
       console.log("Email Registrado/Admin (Para onde seria enviado):", emailRecipientDisplay);
       console.log("Assunto:", finalEmailSubject);
       console.log("Corpo do Email:\n", finalEmailBody);
       console.log("------------------------------------");
+      
+      // Limpa o nome "em nome de" apenas se o booking foi bem sucedido e o diálogo fechado
+      if (actualBookingId) { // Implica sucesso na reserva
+        setOnBehalfOfName('');
+      }
 
-      setOnBehalfOfName(''); 
-      onOpenChange(false);
     } catch (error: any) {
       console.error("Falha na reserva (pega no BookingConfirmationDialog):", error);
       toast({
         variant: "destructive",
         title: "Falha na Reserva",
-        description: error?.message || "Ocorreu um erro ao tentar processar a confirmação da reserva. Por favor, tente novamente.",
+        description: error?.message || "Ocorreu um erro ao tentar processar a reserva. Por favor, tente novamente.",
         duration: 9000,
       });
+       // Não fechar o diálogo em caso de erro na reserva principal
     } finally {
-      setIsBooking(false);
+      setIsBooking(false); // Garante que o spinner pare, independentemente do resultado
     }
   };
 
   useEffect(() => {
+    // Resetar o nome "em nome de" apenas se o diálogo for fechado pelo usuário
+    // ou após uma operação bem-sucedida.
+    // A lógica de reset após sucesso já está no try/finally do handleBooking.
     if (!isOpen) {
       setOnBehalfOfName('');
     }
@@ -138,9 +155,8 @@ export function BookingConfirmationDialog({
 
   return (
     <Dialog open={isOpen} onOpenChange={(open) => {
-      if (!isBooking) {
+      if (!isBooking) { // Permite fechar o diálogo apenas se não estiver em processo de booking
         onOpenChange(open);
-        if (!open) setOnBehalfOfName(''); 
       }
     }}>
       <DialogContent className="sm:max-w-md">
@@ -197,7 +213,7 @@ export function BookingConfirmationDialog({
           )}
         </div>
         <DialogFooter>
-          <Button variant="outline" onClick={() => { onOpenChange(false); setOnBehalfOfName('');}} disabled={isBooking}>
+          <Button variant="outline" onClick={() => { onOpenChange(false);}} disabled={isBooking}>
             Cancelar
           </Button>
           <Button onClick={handleBooking} disabled={isBooking} className="bg-accent hover:bg-accent/90">
