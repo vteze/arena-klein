@@ -2,6 +2,7 @@
 import type {Metadata} from 'next';
 import { GeistSans } from 'geist/font/sans';
 import { GeistMono } from 'geist/font/mono';
+import akLogo from '@/components/icons/ak.jpg';
 import './globals.css';
 import { AuthProvider } from '@/contexts/AuthContext';
 import { AppHeader } from '@/components/layout/AppHeader';
@@ -11,6 +12,9 @@ import { cn } from '@/lib/utils';
 export const metadata: Metadata = {
   title: 'Arena Klein Beach Tennis',
   description: 'Reserve sua quadra de beach tennis na Arena Klein.',
+  icons: {
+    icon: akLogo.src,
+  },
 };
 
 export default function RootLayout({
