@@ -4,7 +4,7 @@
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useState, useEffect } from 'react';
-import { LogIn, LogOut, ListChecks, HomeIcon as HomeLucideIcon, UserPlus, HelpCircle, Swords, ShieldAlert } from 'lucide-react'; // Added ShieldAlert for Admin
+import { LogIn, LogOut, ListChecks, HomeIcon as HomeLucideIcon, UserPlus, HelpCircle, Swords, ShieldAlert, User } from 'lucide-react';
 import { APP_NAME } from '@/config/appConfig';
 import { useAuth } from '@/hooks/useAuth';
 import { Button } from '@/components/ui/button';
@@ -120,7 +120,7 @@ export function AppHeader() {
                 <Button variant="ghost" className="relative h-10 w-10 rounded-full p-0">
                   <Avatar className="h-10 w-10">
                     <AvatarImage
-                      src={`https://placehold.co/100x100.png?text=${getInitials(currentUser.name)}`}
+                      src={currentUser.photoURL || `https://placehold.co/100x100.png?text=${getInitials(currentUser.name)}`}
                       alt={currentUser.name || 'User Avatar'}
                       data-ai-hint="avatar perfil"
                     />
@@ -138,6 +138,12 @@ export function AppHeader() {
                   </div>
                 </DropdownMenuLabel>
                 <DropdownMenuSeparator />
+                <DropdownMenuItem asChild>
+                  <Link href="/profile">
+                    <User className="mr-2 h-4 w-4" />
+                    <span>Perfil</span>
+                  </Link>
+                </DropdownMenuItem>
                 <DropdownMenuItem onClick={logout}>
                   <LogOut className="mr-2 h-4 w-4" />
                   <span>Sair</span>

@@ -13,8 +13,8 @@ import {
   sendPasswordResetEmail,
   type User as FirebaseUser
 } from 'firebase/auth';
-import { auth, db } from '@/lib/firebase';
-import { 
+import { auth, db, storage } from '@/lib/firebase';
+import {
   collection, 
   query, 
   where, 
@@ -29,6 +29,7 @@ import {
   updateDoc,
   Timestamp,
 } from 'firebase/firestore';
+import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { useToast } from "@/hooks/use-toast";
 import { maxParticipantsPerPlaySlot } from '@/config/appConfig';
 
@@ -60,14 +61,18 @@ export function AuthProvider({ children }: AuthProviderProps) {
         const userDocRef = doc(db, USERS_COLLECTION_NAME, firebaseUser.uid);
         const userDocSnap = await getDoc(userDocRef);
         let userName = firebaseUser.displayName || firebaseUser.email?.split('@')[0] || "Usuário";
+        let photoURL = firebaseUser.photoURL || undefined;
         if (userDocSnap.exists()) {
-            userName = userDocSnap.data()?.name || userName;
+            const data = userDocSnap.data();
+            userName = data?.name || userName;
+            photoURL = data?.photoURL || photoURL;
         }
 
         const user: User = {
           id: firebaseUser.uid,
           email: firebaseUser.email || "",
           name: userName,
+          photoURL,
         };
         setCurrentUser(user);
 
@@ -180,12 +185,13 @@ export function AuthProvider({ children }: AuthProviderProps) {
       const userCredential = await createUserWithEmailAndPassword(auth, email, pass);
       if (userCredential.user) {
         await updateProfile(userCredential.user, { displayName: name });
-        
+
         const userDocRef = doc(db, USERS_COLLECTION_NAME, userCredential.user.uid);
         await setDoc(userDocRef, {
           uid: userCredential.user.uid,
           name: name,
           email: email,
+          photoURL: userCredential.user.photoURL || null,
           createdAt: serverTimestamp(),
         });
       }
@@ -234,6 +240,30 @@ export function AuthProvider({ children }: AuthProviderProps) {
         description: message,
         duration: 7000,
       });
+    }
+  };
+
+  const updateProfilePhoto = async (file: File) => {
+    if (!currentUser) {
+      toast({ variant: "destructive", title: "Não Autenticado", description: "Faça login para atualizar sua foto." });
+      router.push('/login');
+      return Promise.reject(new Error('Usuário não autenticado.'));
+    }
+    try {
+      const fileRef = ref(storage, `avatars/${currentUser.id}`);
+      await uploadBytes(fileRef, file);
+      const url = await getDownloadURL(fileRef);
+      if (auth.currentUser) {
+        await updateProfile(auth.currentUser, { photoURL: url });
+      }
+      const userDocRef = doc(db, USERS_COLLECTION_NAME, currentUser.id);
+      await updateDoc(userDocRef, { photoURL: url });
+      setCurrentUser({ ...currentUser, photoURL: url });
+      toast({ title: 'Foto Atualizada', description: 'Sua foto de perfil foi atualizada.' });
+    } catch (error: any) {
+      console.error('Erro ao atualizar foto de perfil:', error);
+      toast({ variant: 'destructive', title: 'Falha ao Atualizar Foto', description: error.message || 'Ocorreu um erro.' });
+      throw error;
     }
   };
 
@@ -427,7 +457,11 @@ export function AuthProvider({ children }: AuthProviderProps) {
   };
 
 
-  const signUpForPlaySlot = async (slotKey: string, date: string, userDetails: { userId: string, userName: string, userEmail: string }) => {
+  const signUpForPlaySlot = async (
+    slotKey: string,
+    date: string,
+    userDetails: { userId: string; userName: string; userEmail: string; userPhotoURL?: string }
+  ) => {
     if (!currentUser || currentUser.id !== userDetails.userId) {
       toast({ variant: "destructive", title: "Não Autenticado", description: "Ação não permitida ou dados do usuário inconsistentes." });
       router.push('/login');
@@ -462,6 +496,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
         userId: userDetails.userId,
         userName: userDetails.userName,
         userEmail: userDetails.userEmail,
+        ...(userDetails.userPhotoURL && { userPhotoURL: userDetails.userPhotoURL }),
         slotKey: slotKey,
         date: date,
         signedUpAt: Timestamp.now(),
@@ -530,11 +565,12 @@ export function AuthProvider({ children }: AuthProviderProps) {
       addBooking, 
       cancelBooking, 
       updateBookingByAdmin,
-      signUpForPlaySlot, 
-      cancelPlaySlotSignUp, 
-      isLoading, 
-      authError, 
-      clearAuthError 
+      signUpForPlaySlot,
+      cancelPlaySlotSignUp,
+      updateProfilePhoto,
+      isLoading,
+      authError,
+      clearAuthError
     }}>
       {children}
     </AuthContext.Provider>
