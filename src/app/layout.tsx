@@ -11,6 +11,11 @@ import { cn } from '@/lib/utils';
 export const metadata: Metadata = {
   title: 'Arena Klein Beach Tennis',
   description: 'Reserve sua quadra de beach tennis na Arena Klein.',
+  icons: {
+    icon: '/icon.jpg',
+    shortcut: '/icon.jpg',
+    apple: '/icon.jpg',
+  },
 };
 
 export default function RootLayout({
