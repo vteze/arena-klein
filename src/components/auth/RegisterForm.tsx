@@ -77,9 +77,10 @@ export function RegisterForm() {
               id="name"
               type="text"
               placeholder="Seu Nome Completo"
-              {...form.register("name")}
+              {...form.register("name", {
+                onChange: () => authError && clearAuthError(),
+              })}
               disabled={isLoading}
-              onChange={() => authError && clearAuthError()}
             />
             {form.formState.errors.name && (
               <p className="text-sm text-destructive">{form.formState.errors.name.message}</p>
@@ -91,9 +92,10 @@ export function RegisterForm() {
               id="email"
               type="email"
               placeholder="seu.email@exemplo.com"
-              {...form.register("email")}
+              {...form.register("email", {
+                onChange: () => authError && clearAuthError(),
+              })}
               disabled={isLoading}
-              onChange={() => authError && clearAuthError()}
             />
             {form.formState.errors.email && (
               <p className="text-sm text-destructive">{form.formState.errors.email.message}</p>
@@ -105,9 +107,10 @@ export function RegisterForm() {
               id="password"
               type="password"
               placeholder="Crie uma Senha"
-              {...form.register("password")}
+              {...form.register("password", {
+                onChange: () => authError && clearAuthError(),
+              })}
               disabled={isLoading}
-              onChange={() => authError && clearAuthError()}
             />
             {form.formState.errors.password && (
               <p className="text-sm text-destructive">{form.formState.errors.password.message}</p>
@@ -119,9 +122,10 @@ export function RegisterForm() {
               id="confirmPassword"
               type="password"
               placeholder="Confirme Sua Senha"
-              {...form.register("confirmPassword")}
+              {...form.register("confirmPassword", {
+                onChange: () => authError && clearAuthError(),
+              })}
               disabled={isLoading}
-              onChange={() => authError && clearAuthError()}
             />
             {form.formState.errors.confirmPassword && (
               <p className="text-sm text-destructive">{form.formState.errors.confirmPassword.message}</p>

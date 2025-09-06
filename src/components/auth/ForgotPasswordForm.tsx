@@ -143,9 +143,10 @@ export function ForgotPasswordForm() {
               id="email"
               type="email"
               placeholder="seu.email@exemplo.com"
-              {...form.register("email")}
-              disabled={isLoading || isTimerActive} 
-              onChange={handleEmailInputChange}
+              {...form.register("email", {
+                onChange: handleEmailInputChange,
+              })}
+              disabled={isLoading || isTimerActive}
             />
             {form.formState.errors.email && (
               <p className="text-sm text-destructive">{form.formState.errors.email.message}</p>

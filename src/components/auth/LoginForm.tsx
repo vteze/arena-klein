@@ -46,8 +46,7 @@ export function LoginForm() {
   }, [authError, clearAuthError]);
 
   const onSubmit = async (data: LoginFormValues) => {
-    console.log('LoginForm onSubmit triggered. Password length:', data.password.length, 'Data:', JSON.stringify(data));
-    clearAuthError(); 
+    clearAuthError();
     await login(data.email, data.password);
   };
 
@@ -77,11 +76,12 @@ export function LoginForm() {
               id="email"
               type="email"
               placeholder="seu.email@exemplo.com"
-              {...form.register("email")}
+              {...form.register("email", {
+                onChange: () => {
+                  if (authError) clearAuthError();
+                },
+              })}
               disabled={isLoading}
-              onChange={() => {
-                if (authError) clearAuthError();
-              }}
             />
             {form.formState.errors.email && (
               <p className="text-sm text-destructive">{form.formState.errors.email.message}</p>
@@ -100,11 +100,12 @@ export function LoginForm() {
               id="password"
               type="password"
               placeholder="Sua Senha"
-              {...form.register("password")}
+              {...form.register("password", {
+                onChange: () => {
+                  if (authError) clearAuthError();
+                },
+              })}
               disabled={isLoading}
-              onChange={() => {
-                if (authError) clearAuthError();
-              }}
             />
             {/* A mensagem de erro "A senha deve ter pelo menos 6 caracteres." vem da validação Zod (cliente) */}
             {form.formState.errors.password && (
