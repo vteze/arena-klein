@@ -14,6 +14,7 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Button } from "@/components/ui/button";
 import { Calendar } from "@/components/ui/calendar";
+import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "@/components/ui/select";
 import { cn } from "@/lib/utils";
 
 interface ChartData {
@@ -30,6 +31,9 @@ export default function AdminDashboardPage() {
   const [isClient, setIsClient] = useState(false);
   const [startDate, setStartDate] = useState<Date | undefined>(subDays(new Date(), 6));
   const [endDate, setEndDate] = useState<Date | undefined>(new Date());
+  const [activityFilter, setActivityFilter] = useState<string>('all');
+  const [activityPage, setActivityPage] = useState(1);
+  const activitiesPerPage = 10;
 
   const totalBookings = useMemo(() => bookings.length, [bookings]);
   const totalPlaySignUpsCount = useMemo(() => playSignUps.length, [playSignUps]);
@@ -95,6 +99,24 @@ export default function AdminDashboardPage() {
     if (bookingsPerCourt.length === 0) return "N/A";
     return bookingsPerCourt.reduce((prev, current) => (prev.total! > current.total!) ? prev : current).name;
   }, [bookingsPerCourt]);
+
+  const filteredActivities = useMemo(() => {
+    const activities = bookingActivities.filter(
+      a => activityFilter === 'all' || a.action === activityFilter
+    );
+    return activities.sort((a, b) => (b.timestamp?.toMillis?.() || 0) - (a.timestamp?.toMillis?.() || 0));
+  }, [bookingActivities, activityFilter]);
+
+  const totalActivityPages = Math.ceil(filteredActivities.length / activitiesPerPage) || 1;
+
+  const paginatedActivities = useMemo(() => {
+    const start = (activityPage - 1) * activitiesPerPage;
+    return filteredActivities.slice(start, start + activitiesPerPage);
+  }, [filteredActivities, activityPage]);
+
+  useEffect(() => {
+    setActivityPage(1);
+  }, [activityFilter]);
   
   const dateRangeLabel = useMemo(() => {
     if (startDate && endDate) {
@@ -360,6 +382,27 @@ export default function AdminDashboardPage() {
           <CardTitle className="text-xl">Registro de Atividades</CardTitle>
         </CardHeader>
         <CardContent className="overflow-x-auto">
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 mb-4">
+            <div className="flex items-center gap-2">
+              <span className="text-sm">Filtrar por:</span>
+              <Select value={activityFilter} onValueChange={setActivityFilter}>
+                <SelectTrigger className="w-[180px]">
+                  <SelectValue placeholder="Tipo de atividade" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Todas</SelectItem>
+                  <SelectItem value="created">Reserva</SelectItem>
+                  <SelectItem value="canceled">Cancelamento</SelectItem>
+                  <SelectItem value="updated">Atualização</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="flex items-center gap-2">
+              <Button variant="outline" size="sm" onClick={() => setActivityPage(p => Math.max(1, p - 1))} disabled={activityPage === 1}>Anterior</Button>
+              <span className="text-sm">Página {activityPage} de {totalActivityPages}</span>
+              <Button variant="outline" size="sm" onClick={() => setActivityPage(p => Math.min(totalActivityPages, p + 1))} disabled={activityPage === totalActivityPages}>Próxima</Button>
+            </div>
+          </div>
           <table className="w-full text-sm">
             <thead>
               <tr>
@@ -370,18 +413,16 @@ export default function AdminDashboardPage() {
               </tr>
             </thead>
             <tbody>
-              {bookingActivities
-                .sort((a, b) => (b.timestamp?.toMillis?.() || 0) - (a.timestamp?.toMillis?.() || 0))
-                .map(activity => (
-                  <tr key={activity.id} className="border-t">
-                    <td className="px-2 py-1">{activity.timestamp?.toDate ? format(activity.timestamp.toDate(), 'dd/MM/yyyy HH:mm') : ''}</td>
-                    <td className="px-2 py-1">
-                      {activity.action === 'created' ? 'Reserva' : activity.action === 'canceled' ? 'Cancelamento' : 'Atualização'}
-                    </td>
-                    <td className="px-2 py-1">{activity.courtName} ({activity.date} {activity.time})</td>
-                    <td className="px-2 py-1">{activity.userName}</td>
-                  </tr>
-                ))}
+              {paginatedActivities.map(activity => (
+                <tr key={activity.id} className="border-t">
+                  <td className="px-2 py-1">{activity.timestamp?.toDate ? format(activity.timestamp.toDate(), 'dd/MM/yyyy HH:mm') : ''}</td>
+                  <td className="px-2 py-1">
+                    {activity.action === 'created' ? 'Reserva' : activity.action === 'canceled' ? 'Cancelamento' : 'Atualização'}
+                  </td>
+                  <td className="px-2 py-1">{activity.courtName} ({activity.date} {activity.time})</td>
+                  <td className="px-2 py-1">{activity.userName}</td>
+                </tr>
+              ))}
             </tbody>
           </table>
         </CardContent>
