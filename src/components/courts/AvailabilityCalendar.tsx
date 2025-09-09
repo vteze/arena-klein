@@ -66,6 +66,8 @@ export function AvailabilityCalendar({
   useEffect(() => {
     if (currentSelectedDate && !authIsLoading) {
       const formattedSelectedDate = format(currentSelectedDate, 'yyyy-MM-dd');
+      const formattedToday = format(new Date(), 'yyyy-MM-dd');
+      const now = new Date();
       const slots = availableTimeSlots.map(slotTime => {
         const isBookedByRegularBooking = bookings.some(
           booking =>
@@ -74,11 +76,19 @@ export function AvailabilityCalendar({
             booking.time === slotTime
         );
         const isDuringPlayTime = isTimeInPlaySession(currentSelectedDate, slotTime, playSlotsConfig);
-        
+        let isPast = false;
+        if (formattedSelectedDate === formattedToday) {
+          const [hours, minutes] = slotTime.split(':').map(Number);
+          const slotDate = new Date(currentSelectedDate);
+          slotDate.setHours(hours, minutes, 0, 0);
+          isPast = slotDate <= now;
+        }
+
         return {
           time: slotTime,
-          isBooked: isBookedByRegularBooking, 
-          isPlayTime: isDuringPlayTime,     
+          isBooked: isBookedByRegularBooking,
+          isPlayTime: isDuringPlayTime,
+          isPast,
         };
       });
       setTimeSlots(slots);
@@ -147,13 +157,21 @@ export function AvailabilityCalendar({
                       let ariaLabel = `Reservar ${slot.time}`;
 
                       if (slot.isPlayTime) {
-                        buttonVariant = "default"; // Use primary color for Play indication
-                        buttonText = "Play!";
-                        IconComponent = Swords;
-                        isDisabled = false; // Play slots are clickable
-                        onClickAction = () => router.push('/play');
-                        ariaLabel = `Ir para a página de Play (horário ${slot.time})`;
-                      } else if (slot.isBooked) {
+                        if (slot.isPast) {
+                          buttonVariant = "destructive";
+                          isDisabled = true;
+                          buttonText = "Play!";
+                          IconComponent = Swords;
+                          ariaLabel = `Horário ${slot.time} indisponível`;
+                        } else {
+                          buttonVariant = "default"; // Use primary color for Play indication
+                          buttonText = "Play!";
+                          IconComponent = Swords;
+                          isDisabled = false; // Play slots are clickable
+                          onClickAction = () => router.push('/play');
+                          ariaLabel = `Ir para a página de Play (horário ${slot.time})`;
+                        }
+                      } else if (slot.isBooked || slot.isPast) {
                         buttonVariant = "destructive";
                         isDisabled = true;
                         ariaLabel = `Horário ${slot.time} indisponível`;
@@ -169,7 +187,7 @@ export function AvailabilityCalendar({
                             "w-full transition-colors duration-150 ease-in-out group",
                             isDisabled && 'cursor-not-allowed opacity-70',
                             slot.isPlayTime && 'bg-accent text-accent-foreground hover:bg-accent/90 focus:bg-accent/90',
-                            !slot.isPlayTime && !slot.isBooked && 'hover:bg-primary hover:text-primary-foreground focus:bg-primary focus:text-primary-foreground'
+                            !slot.isPlayTime && !slot.isBooked && !slot.isPast && 'hover:bg-primary hover:text-primary-foreground focus:bg-primary focus:text-primary-foreground'
                           )}
                           aria-label={ariaLabel}
                         >
