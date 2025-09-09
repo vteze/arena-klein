@@ -6,10 +6,11 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { ListChecks, CalendarClock, Users, Swords, CalendarDays } from "lucide-react";
 import Link from "next/link";
-import { playSlotsConfig, numberOfWeeksToDisplayPlaySlots, maxParticipantsPerPlaySlot, type PlaySlotConfig } from '@/config/appConfig';
+import { playSlotsConfig, numberOfWeeksToDisplayPlaySlots, maxParticipantsPerPlaySlot } from '@/config/appConfig';
+import type { PlaySlotConfig } from '@/lib/types';
 import { PlaySlotDisplay } from '@/components/play/PlaySlotDisplay';
 import { useAuth } from '@/hooks/useAuth';
-import { format, parseISO, startOfDay, addDays, getDay, nextDay as dateFnsNextDay } from 'date-fns';
+import { format, parseISO, startOfDay, addDays, getDay, nextDay as dateFnsNextDay, type Day } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { Separator } from "@/components/ui/separator";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -23,7 +24,7 @@ interface PlaySlotInstance {
 }
 
 // Função para gerar as próximas N datas para um dia da semana específico
-const getNextOccurrences = (targetDayOfWeek: number, count: number): Array<{ date: string; displayDate: string }> => {
+const getNextOccurrences = (targetDayOfWeek: Day, count: number): Array<{ date: string; displayDate: string }> => {
   const occurrences: Array<{ date: string; displayDate: string }> = [];
   let currentDate = startOfDay(new Date()); // Começa de hoje
 

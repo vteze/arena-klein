@@ -1,4 +1,5 @@
 
+import type { Day } from 'date-fns';
 export interface User {
   id: string;
   name: string;
@@ -35,7 +36,7 @@ export interface TimeSlot {
 export interface PlaySlotConfig {
   key: string;
   label: string;
-  dayOfWeek: number; // 0 (Sunday) to 6 (Saturday)
+  dayOfWeek: Day; // 0 (Sunday) to 6 (Saturday)
   timeRange: string; // e.g., "16:00 - 20:00"
 }
 
@@ -47,6 +48,19 @@ export interface PlaySignUp {
   slotKey: string; // Corresponds to PlaySlotConfig.key
   date: string; // YYYY-MM-DD, specific date of the play session
   signedUpAt: any; // Firestore Timestamp
+}
+
+export interface BookingActivity {
+  id: string;
+  bookingId: string;
+  action: 'created' | 'canceled' | 'updated';
+  userId: string;
+  userName: string;
+  courtId: string;
+  courtName: string;
+  date: string; // YYYY-MM-DD
+  time: string; // HH:mm
+  timestamp: any; // Firestore Timestamp
 }
 
 
@@ -62,6 +76,7 @@ export interface AuthContextType {
   isAdmin: boolean;
   bookings: Booking[];
   playSignUps: PlaySignUp[];
+  bookingActivities: BookingActivity[];
   totalUsers: number;
   login: (email: string, pass: string) => Promise<void>;
   signUp: (name: string, email: string, pass: string) => Promise<void>;
