@@ -49,6 +49,19 @@ export interface PlaySignUp {
   signedUpAt: any; // Firestore Timestamp
 }
 
+export interface BookingActivity {
+  id: string;
+  bookingId: string;
+  action: 'created' | 'canceled' | 'updated';
+  userId: string;
+  userName: string;
+  courtId: string;
+  courtName: string;
+  date: string; // YYYY-MM-DD
+  time: string; // HH:mm
+  timestamp: any; // Firestore Timestamp
+}
+
 
 import type { ReactNode } from 'react';
 import type { personalizedBookingConfirmation, PersonalizedBookingConfirmationInput as AIInputType } from '@/ai/flows/booking-confirmation'; // Adjusted import
@@ -62,6 +75,7 @@ export interface AuthContextType {
   isAdmin: boolean;
   bookings: Booking[];
   playSignUps: PlaySignUp[];
+  bookingActivities: BookingActivity[];
   totalUsers: number;
   login: (email: string, pass: string) => Promise<void>;
   signUp: (name: string, email: string, pass: string) => Promise<void>;

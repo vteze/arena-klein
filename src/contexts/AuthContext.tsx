@@ -1,7 +1,8 @@
 
 "use client";
 
-import type { User, Booking, PlaySignUp, AuthContextType, AuthProviderProps } from '@/lib/types';
+import type { User, Booking, PlaySignUp, BookingActivity, AuthContextType, AuthProviderProps } from '@/lib/types';
+export type { AuthContextType } from '@/lib/types';
 import { useRouter, usePathname } from 'next/navigation';
 import { createContext, useState, useEffect, useCallback } from 'react';
 import { 
@@ -38,12 +39,14 @@ const USERS_COLLECTION_NAME = "users";
 const RESERVAS_COLLECTION_NAME = "reservas";
 const PLAY_SIGNUPS_COLLECTION_NAME = "playSignUps";
 const ADMINS_COLLECTION_NAME = "admins";
+const BOOKING_ACTIVITIES_COLLECTION_NAME = "bookingActivities";
 
 export function AuthProvider({ children }: AuthProviderProps) {
   const [currentUser, setCurrentUser] = useState<User | null>(null);
   const [isAdmin, setIsAdmin] = useState(false);
   const [bookings, setBookings] = useState<Booking[]>([]);
-  const [playSignUps, setPlaySignUps] = useState<PlaySignUp[]>([]); 
+  const [playSignUps, setPlaySignUps] = useState<PlaySignUp[]>([]);
+  const [bookingActivities, setBookingActivities] = useState<BookingActivity[]>([]);
   const [totalUsers, setTotalUsers] = useState<number>(0);
   const [isLoading, setIsLoading] = useState(true); 
   const [authError, setAuthError] = useState<string | null>(null);
@@ -142,10 +145,28 @@ export function AuthProvider({ children }: AuthProviderProps) {
       setPlaySignUps(allSignUps);
     }, (error) => {
       console.error(`Erro ao buscar dados da coleção '${PLAY_SIGNUPS_COLLECTION_NAME}': `, error);
-      toast({ 
-        variant: "destructive", 
+      toast({
+        variant: "destructive",
         title: `Erro ao Buscar Inscrições do Play`,
         description: `Não foi possível carregar os dados das inscrições do Play. Verifique suas Regras de Segurança e Índices do Firestore. Erro: ${getFirebaseErrorMessage(error.code, "Falha ao carregar inscrições Play.")}`,
+        duration: 10000
+      });
+    });
+
+    const bookingActivitiesColRef = collection(db, BOOKING_ACTIVITIES_COLLECTION_NAME);
+    const qBookingActivities = query(bookingActivitiesColRef);
+    const unsubscribeBookingActivities = onSnapshot(qBookingActivities, (querySnapshot) => {
+      const allActivities: BookingActivity[] = [];
+      querySnapshot.forEach((docSnap) => {
+        allActivities.push({ id: docSnap.id, ...docSnap.data() } as BookingActivity);
+      });
+      setBookingActivities(allActivities);
+    }, (error) => {
+      console.error(`Erro ao buscar dados da coleção '${BOOKING_ACTIVITIES_COLLECTION_NAME}': `, error);
+      toast({
+        variant: "destructive",
+        title: `Erro ao Buscar Atividades`,
+        description: `Não foi possível carregar o histórico de atividades. Erro: ${getFirebaseErrorMessage(error.code, "Falha ao carregar atividades.")}`,
         duration: 10000
       });
     });
@@ -154,6 +175,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
       unsubscribeAuth();
       unsubscribeBookings();
       unsubscribePlaySignUps();
+      unsubscribeBookingActivities();
     };
   }, [toast]);
 
@@ -302,6 +324,21 @@ export function AuthProvider({ children }: AuthProviderProps) {
       const newBookingDocRef = doc(db, RESERVAS_COLLECTION_NAME, generatedBookingId);
       await setDoc(newBookingDocRef, bookingToSave);
       console.log(`Reserva (NÃO TRANSACIONAL) salva com sucesso na coleção '${RESERVAS_COLLECTION_NAME}'. ID da Reserva:`, generatedBookingId);
+      try {
+        await addDoc(collection(db, BOOKING_ACTIVITIES_COLLECTION_NAME), {
+          bookingId: generatedBookingId,
+          action: 'created',
+          userId: currentUser.id,
+          userName: currentUser.name,
+          courtId: courtIdStr,
+          courtName: courtNameStr,
+          date: dateStr,
+          time: timeStr,
+          timestamp: serverTimestamp(),
+        });
+      } catch (logError) {
+        console.error('Falha ao registrar atividade de criação de reserva:', logError);
+      }
       return generatedBookingId;
 
     } catch (error: any) {
@@ -350,6 +387,21 @@ export function AuthProvider({ children }: AuthProviderProps) {
 
       if (isAdmin || currentUser.id === bookingData.userId) {
         await deleteDoc(bookingDocRef);
+        try {
+          await addDoc(collection(db, BOOKING_ACTIVITIES_COLLECTION_NAME), {
+            bookingId,
+            action: 'canceled',
+            userId: bookingData.userId,
+            userName: bookingData.userName,
+            courtId: bookingData.courtId,
+            courtName: bookingData.courtName,
+            date: bookingData.date,
+            time: bookingData.time,
+            timestamp: serverTimestamp(),
+          });
+        } catch (logError) {
+          console.error('Falha ao registrar atividade de cancelamento de reserva:', logError);
+        }
         toast({
             title: "Reserva Cancelada",
             description: `A reserva ID ${bookingId} foi cancelada com sucesso.`,
@@ -413,6 +465,21 @@ export function AuthProvider({ children }: AuthProviderProps) {
 
 
       await updateDoc(bookingDocRef, dataToUpdate);
+      try {
+        await addDoc(collection(db, BOOKING_ACTIVITIES_COLLECTION_NAME), {
+          bookingId,
+          action: 'updated',
+          userId: existingBookingData.userId,
+          userName: existingBookingData.userName,
+          courtId: existingBookingData.courtId,
+          courtName: existingBookingData.courtName,
+          date: newDate,
+          time: newTime,
+          timestamp: serverTimestamp(),
+        });
+      } catch (logError) {
+        console.error('Falha ao registrar atividade de atualização de reserva:', logError);
+      }
       toast({ title: "Reserva Atualizada", description: `Reserva ID ${bookingId} atualizada pelo admin.` });
     } catch (error: any) {
       console.error(`Erro ao atualizar reserva ID ${bookingId} pelo admin: `, error);
@@ -517,16 +584,17 @@ export function AuthProvider({ children }: AuthProviderProps) {
   }, [currentUser, isLoading, isAdmin, pathname, router, toast]); // Added toast to dependency array
 
   return (
-    <AuthContext.Provider value={{ 
-      currentUser, 
+    <AuthContext.Provider value={{
+      currentUser,
       isAdmin,
-      bookings, 
-      playSignUps, 
+      bookings,
+      playSignUps,
+      bookingActivities,
       totalUsers,
-      login, 
-      signUp, 
-      logout, 
-      sendPasswordReset, 
+      login,
+      signUp,
+      logout,
+      sendPasswordReset,
       addBooking, 
       cancelBooking, 
       updateBookingByAdmin,

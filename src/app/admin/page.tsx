@@ -24,7 +24,7 @@ interface ChartData {
 }
 
 export default function AdminDashboardPage() {
-  const { currentUser, isAdmin, bookings, playSignUps, totalUsers, isLoading: authLoading } = useAuth();
+  const { currentUser, isAdmin, bookings, playSignUps, bookingActivities, totalUsers, isLoading: authLoading } = useAuth();
   const router = useRouter();
 
   const [isClient, setIsClient] = useState(false);
@@ -354,7 +354,39 @@ export default function AdminDashboardPage() {
             </Card>
         </div>
       </section>
-      
+
+      <Card className="mt-10 shadow-md">
+        <CardHeader>
+          <CardTitle className="text-xl">Registro de Atividades</CardTitle>
+        </CardHeader>
+        <CardContent className="overflow-x-auto">
+          <table className="w-full text-sm">
+            <thead>
+              <tr>
+                <th className="px-2 py-1 text-left">Quando</th>
+                <th className="px-2 py-1 text-left">Ação</th>
+                <th className="px-2 py-1 text-left">Quadra</th>
+                <th className="px-2 py-1 text-left">Usuário</th>
+              </tr>
+            </thead>
+            <tbody>
+              {bookingActivities
+                .sort((a, b) => (b.timestamp?.toMillis?.() || 0) - (a.timestamp?.toMillis?.() || 0))
+                .map(activity => (
+                  <tr key={activity.id} className="border-t">
+                    <td className="px-2 py-1">{activity.timestamp?.toDate ? format(activity.timestamp.toDate(), 'dd/MM/yyyy HH:mm') : ''}</td>
+                    <td className="px-2 py-1">
+                      {activity.action === 'created' ? 'Reserva' : activity.action === 'canceled' ? 'Cancelamento' : 'Atualização'}
+                    </td>
+                    <td className="px-2 py-1">{activity.courtName} ({activity.date} {activity.time})</td>
+                    <td className="px-2 py-1">{activity.userName}</td>
+                  </tr>
+                ))}
+            </tbody>
+          </table>
+        </CardContent>
+      </Card>
+
       <Card className="mt-10 shadow-md">
         <CardHeader>
             <CardTitle className="text-xl">Notas e Próximos Passos</CardTitle>
