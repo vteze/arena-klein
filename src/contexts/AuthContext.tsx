@@ -28,6 +28,7 @@ import {
   getDocs,
   getDoc,
   updateDoc,
+  deleteField,
   Timestamp,
 } from 'firebase/firestore';
 import { useToast } from "@/hooks/use-toast";
@@ -467,8 +468,9 @@ export function AuthProvider({ children }: AuthProviderProps) {
         time: newTime,
       };
 
-      if (newOnBehalfOfName !== undefined) { // If newOnBehalfOfName was passed
-        dataToUpdate.onBehalfOf = newOnBehalfOfName.trim() || undefined; // Set to undefined if empty string, to remove field
+      if (newOnBehalfOfName !== undefined) {
+        const trimmed = newOnBehalfOfName.trim();
+        dataToUpdate.onBehalfOf = trimmed ? trimmed : deleteField();
       }
 
 
