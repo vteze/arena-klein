@@ -176,34 +176,44 @@ export function EditBookingDialog({
             </Label>
             {selectedDate ? (
                 <div className="grid grid-cols-3 sm:grid-cols-4 gap-2">
-                {availableTimeSlots.map((slot) => {
-                    const isCurrentlyBookedByOther = allBookings.some(b => 
-                        b.courtId === booking.courtId &&
-                        b.date === format(selectedDate, 'yyyy-MM-dd') &&
-                        b.time === slot &&
-                        b.id !== booking.id 
-                    );
+                  {availableTimeSlots.map((slot) => {
+                      const isCurrentlyBookedByOther = allBookings.some(b =>
+                          b.courtId === booking.courtId &&
+                          b.date === format(selectedDate, 'yyyy-MM-dd') &&
+                          b.time === slot &&
+                          b.id !== booking.id
+                      );
+                      const todayStr = format(new Date(), 'yyyy-MM-dd');
+                      const isSameDay = format(selectedDate, 'yyyy-MM-dd') === todayStr;
+                      let isPastTime = false;
+                      if (isSameDay) {
+                          const [h, m] = slot.split(':').map(Number);
+                          const slotDate = new Date(selectedDate);
+                          slotDate.setHours(h, m, 0, 0);
+                          isPastTime = slotDate <= new Date();
+                      }
+                      const isUnavailable = isCurrentlyBookedByOther || isPastTime;
 
-                    return (
-                    <Button
-                        key={slot}
-                        variant={selectedTime === slot ? "default" : (isCurrentlyBookedByOther ? "destructive" : "outline")}
-                        onClick={() => !isCurrentlyBookedByOther && setSelectedTime(slot)}
-                        disabled={isCurrentlyBookedByOther}
-                        className={cn("w-full transition-all", 
-                            selectedTime === slot && "ring-2 ring-primary ring-offset-2",
-                            isCurrentlyBookedByOther && "cursor-not-allowed line-through"
-                        )}
-                        aria-label={isCurrentlyBookedByOther ? `Horário ${slot} indisponível` : `Selecionar ${slot}`}
-                    >
-                        {slot}
-                    </Button>
-                    );
-                })}
-                </div>
-            ) : (
-                <p className="text-sm text-muted-foreground">Selecione uma data para ver os horários.</p>
-            )}
+                      return (
+                      <Button
+                          key={slot}
+                          variant={selectedTime === slot ? "default" : (isUnavailable ? "destructive" : "outline")}
+                          onClick={() => !isUnavailable && setSelectedTime(slot)}
+                          disabled={isUnavailable}
+                          className={cn("w-full transition-all",
+                              selectedTime === slot && "ring-2 ring-primary ring-offset-2",
+                              isUnavailable && "cursor-not-allowed line-through"
+                          )}
+                          aria-label={isUnavailable ? `Horário ${slot} indisponível` : `Selecionar ${slot}`}
+                      >
+                          {slot}
+                      </Button>
+                      );
+                  })}
+                  </div>
+              ) : (
+                  <p className="text-sm text-muted-foreground">Selecione uma data para ver os horários.</p>
+              )}
           </div>
         </div>
 

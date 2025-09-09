@@ -31,6 +31,7 @@ export interface TimeSlot {
   time: string; // HH:mm
   isBooked: boolean;
   isPlayTime?: boolean;
+  isPast?: boolean;
 }
 
 export interface PlaySlotConfig {

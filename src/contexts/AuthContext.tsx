@@ -294,7 +294,14 @@ export function AuthProvider({ children }: AuthProviderProps) {
       console.error("Valor inválido para courtType em addBooking:", courtTypeStr);
       throw new Error("Tipo da quadra inválido. Deve ser 'covered' ou 'uncovered'.");
     }
-    
+
+    const bookingDateTime = new Date(`${dateStr}T${timeStr}:00`);
+    if (bookingDateTime <= new Date()) {
+      const errMsg = "Não é possível reservar um horário que já passou.";
+      toast({ variant: "destructive", title: "Horário inválido", description: errMsg });
+      throw new Error(errMsg);
+    }
+
     const generatedBookingId = doc(collection(db, RESERVAS_COLLECTION_NAME)).id;
 
     try {
