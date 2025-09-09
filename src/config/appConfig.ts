@@ -1,6 +1,8 @@
 
 import type { Court, PlaySlotConfig } from '@/lib/types';
 
+export type { PlaySlotConfig };
+
 export const APP_NAME = "Arena Klein Beach Tennis";
 
 // adminUserUids array foi removido. A verificação de admin agora é feita via coleção 'admins' no Firestore.
