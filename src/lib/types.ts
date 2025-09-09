@@ -1,4 +1,5 @@
 
+import type { Day } from 'date-fns';
 export interface User {
   id: string;
   name: string;
@@ -35,7 +36,7 @@ export interface TimeSlot {
 export interface PlaySlotConfig {
   key: string;
   label: string;
-  dayOfWeek: number; // 0 (Sunday) to 6 (Saturday)
+  dayOfWeek: Day; // 0 (Sunday) to 6 (Saturday)
   timeRange: string; // e.g., "16:00 - 20:00"
 }
 

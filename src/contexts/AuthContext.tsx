@@ -153,9 +153,22 @@ export function AuthProvider({ children }: AuthProviderProps) {
       });
     });
 
+    return () => {
+      unsubscribeAuth();
+      unsubscribeBookings();
+      unsubscribePlaySignUps();
+    };
+  }, [toast]);
+
+  useEffect(() => {
+    if (!isAdmin) {
+      setBookingActivities([]);
+      return;
+    }
+
     const bookingActivitiesColRef = collection(db, BOOKING_ACTIVITIES_COLLECTION_NAME);
     const qBookingActivities = query(bookingActivitiesColRef);
-    const unsubscribeBookingActivities = onSnapshot(qBookingActivities, (querySnapshot) => {
+    const unsubscribe = onSnapshot(qBookingActivities, (querySnapshot) => {
       const allActivities: BookingActivity[] = [];
       querySnapshot.forEach((docSnap) => {
         allActivities.push({ id: docSnap.id, ...docSnap.data() } as BookingActivity);
@@ -171,13 +184,8 @@ export function AuthProvider({ children }: AuthProviderProps) {
       });
     });
 
-    return () => {
-      unsubscribeAuth();
-      unsubscribeBookings();
-      unsubscribePlaySignUps();
-      unsubscribeBookingActivities();
-    };
-  }, [toast]);
+    return () => unsubscribe();
+  }, [isAdmin, toast]);
 
 
   const login = async (email: string, pass: string) => {
