@@ -56,6 +56,7 @@ export function PlaySlotDisplay({ slotConfig, date, displayDate, allSignUps }: P
         userId: currentUser.id,
         userName: currentUser.name,
         userEmail: currentUser.email,
+        userPhotoURL: currentUser.photoURL,
       });
     } catch (error) {
       console.error("Erro no handleSignUp:", error);
@@ -123,9 +124,9 @@ export function PlaySlotDisplay({ slotConfig, date, displayDate, allSignUps }: P
                 <div key={signUp.id} className="flex items-center justify-between gap-2 p-2 border rounded-md bg-muted/50">
                   <div className="flex items-center gap-2 overflow-hidden">
                     <Avatar className="h-8 w-8 flex-shrink-0">
-                      <AvatarImage 
-                          src={`https://placehold.co/40x40.png?text=${getInitials(signUp.userName)}`} 
-                          alt={signUp.userName} 
+                      <AvatarImage
+                          src={signUp.userPhotoURL || `https://placehold.co/40x40.png?text=${getInitials(signUp.userName)}`}
+                          alt={signUp.userName}
                           data-ai-hint="avatar perfil"
                       />
                       <AvatarFallback>{getInitials(signUp.userName)}</AvatarFallback>
