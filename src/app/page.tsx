@@ -18,6 +18,10 @@ export default function HomePage() {
 
   useEffect(() => {
     setIsClient(true);
+
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    setGloballySelectedDate(today);
   }, []);
 
   return (
