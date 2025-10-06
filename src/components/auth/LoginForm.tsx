@@ -16,7 +16,7 @@ import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 
 const loginSchema = z.object({
   email: z.string().email({ message: "Endereço de email inválido." }),
-  password: z.string().min(6, { message: "A senha deve ter pelo menos 6 caracteres." }),
+  password: z.string().trim().min(1, { message: "Digite sua senha." }),
 });
 
 type LoginFormValues = z.infer<typeof loginSchema>;

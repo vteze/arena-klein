@@ -4,6 +4,7 @@ export interface User {
   id: string;
   name: string;
   email: string;
+  photoURL?: string;
 }
 
 export interface Court {
@@ -46,6 +47,7 @@ export interface PlaySignUp {
   userId: string;
   userName: string;
   userEmail: string;
+  userPhotoURL?: string;
   slotKey: string; // Corresponds to PlaySlotConfig.key
   date: string; // YYYY-MM-DD, specific date of the play session
   signedUpAt: any; // Firestore Timestamp
@@ -86,8 +88,9 @@ export interface AuthContextType {
   addBooking: (newBookingData: Omit<Booking, 'id' | 'userId' | 'userName' | 'onBehalfOf'>, onBehalfOfName?: string) => Promise<string>;
   cancelBooking: (bookingId: string) => Promise<void>;
   updateBookingByAdmin: (bookingId: string, newDate: string, newTime: string, newOnBehalfOfName?: string) => Promise<void>;
-  signUpForPlaySlot: (slotKey: string, date: string, userDetails: { userId: string, userName: string, userEmail: string }) => Promise<void>;
+  signUpForPlaySlot: (slotKey: string, date: string, userDetails: { userId: string; userName: string; userEmail: string; userPhotoURL?: string }) => Promise<void>;
   cancelPlaySlotSignUp: (signUpId: string) => Promise<void>;
+  updateProfilePhoto: (file: File) => Promise<void>;
   isLoading: boolean;
   authError: string | null;
   clearAuthError: () => void;
